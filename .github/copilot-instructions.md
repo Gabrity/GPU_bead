@@ -58,8 +58,9 @@
 - Tervezett: `Beadandó/src/` (host + kernelek), `Beadandó/data/` (letöltött térképek, gitignore: `data/*.txt`), `Beadandó/docs/` (riport, grafikonok), `Beadandó/bench/` (mérőscriptek).
 
 ## 7. Munkamódszer / konvenciók
-- Gyakori, kis commitok, egyértelmű üzenettel (a history maga követelmény). Commit trailer: `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`.
+- **Commitot a felhasználó csinál, az asszisztens NEM commitol** (felhasználó, 2026-11-22). A history viszont követelmény (gyakori, kis, beszédes commitok), ezért az asszisztens a munka végén javasolhat commit-bontást és üzenetet, de nem hajtja végre.
 - Minden optimalizációs lépésnél: naiv verzió → optimalizált verzió, mérés (idő, GB/s), indoklás. A méréseket mentsd CSV-be a grafikonokhoz.
+- **`Beadandó/run.md`** mindig az aktuális fordítási és futtatási módot tartalmazza (környezet betöltése, build, futtatás + várt kimenet; a hello cuda nem szerepel benne); minden olyan változtatásnál frissítendő, ami a fordítást vagy futtatást érinti (új program, új paraméter, új kimenet, build-változás).
 - Kódban csak a nem triviális részeket kommentezd, de a kód legyen tiszta (extra pont).
 - A kernel-implementáció legyen saját; külső könyvtár csak I/O-ra, ablakkezelésre és (opcionálisan) a Bézier-solver összehasonlítására.
 - Ne commitolj titkot, nagy bináris adatot, a kurzusanyagot.
