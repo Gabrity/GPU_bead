@@ -14,4 +14,10 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
+add_library(heightmap STATIC src/heightmap.cpp)
+target_include_directories(heightmap PUBLIC src)
+
 add_executable(cuda_hello src/hello.cu)
+
+add_executable(contours src/main.cpp)
+target_link_libraries(contours PRIVATE heightmap)
