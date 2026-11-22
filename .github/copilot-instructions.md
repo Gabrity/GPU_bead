@@ -32,16 +32,19 @@
 - Multi-GPU / multi-device (utóbbi csak OpenCL) (+5%).
 - CPU-összehasonlítás: szekvenciális (+1%), többszálú (+1%), harmadik fél CPU/GPU implementációja (+1%).
 
-## 4. Környezet (felmérve 2026-11-08)
-- OS: Windows. Munkakönyvtár: `C:\Users\User\Desktop\GPU Bead`. Shell: Windows PowerShell 5-ös szintaxis (nincs `&&`, `||`).
-- GPU: **csak Intel HD Graphics 520** (integrált). **Nincs NVIDIA GPU**, nincs `nvcc`/CUDA, nincs `nvidia-smi`.
-- `OpenCL.dll` megtalálható a System32-ben → **OpenCL** a reális választás (az Intel HD 520 támogat OpenCL 2.0-t – ellenőrizni). CUDA csak elméleti szinten jöhet szóba, futtatni nem lehet.
-- Fordítók a PATH-on: **nincs** (`cl`, `g++`, `clang`, `cmake` hiányzik). Python 3.13.2 elérhető (`python -m pip` működik, `pip` önállóan nem).
-- **A megoldást egy másik gépen, NVIDIA GPU-val fogják futtatni** (felhasználó, 2026-11-09) → a CUDA is szóba jön; a fenti Intel-gép csak a szerkesztéshez van. API-döntés még nyitott (CUDA vs OpenCL); a kódnak a célgépen kell fordulnia és futnia, ezért kerüljük a gépfüggő beépített útvonalakat (build rendszer: CMake javasolt). A GPU típusát/compute capability-t a célgépen kell felmérni (`nvidia-smi`, `nvcc --version`).
-- Teendő: C/C++ toolchain telepítése (pl. VS Build Tools / MSYS2 mingw-w64), OpenCL headerek + ICD loader (Khronos), GLFW/GLEW vagy hasonló az OpenGL-hez.
-- Python `pypdf` telepítve (PDF olvasáshoz).
-- A `.git` mappa létezik, `main` ág, még nincs commit.
-
+## 4. Környezet (felmérve 2026-11-22)
+- OS: Windows, munkakönyvtár: `C:\Users\komba\Desktop\GPU_bead`. Shell: Windows PowerShell 5 szintaxis (nincs `&&`, `||`).
+- GPU: **NVIDIA GeForce RTX 2060** (compute capability 7.5, 30 SM, 6 GiB, driver 621.24) + AMD Radeon iGPU. **CUDA a választott API.**
+- Telepítve: **VS 2022 Build Tools** (MSVC 14.44, CMake 3.31 + Ninja a VS-ben) és **CUDA Toolkit 13.5** (winget `Nvidia.CUDA`, rendszergazdai PowerShellből telepíthető; az UAC a háttérfolyamatban nem jelenik meg).
+- A `cl`/`cmake`/`ninja` csak a VS Developer környezetben van a PATH-on. Új ablakban:
+  ```powershell
+  Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+  & "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\Launch-VsDevShell.ps1" -Arch amd64 -SkipAutomaticLocation
+  ```
+  (a `.ps1` futtatása alapból tiltott → a `Process` scope-os Bypass kell). Ha az `nvcc` nem található, a Machine/User PATH-ot újra be kell tölteni, vagy új ablakot nyitni.
+- Build: `cd Beadandó; cmake -S . -B build -G Ninja; cmake --build build` (a `CMAKE_CUDA_ARCHITECTURES` alapértelmezése `native`, így a célgép GPU-jára fordul).
+- **Nincs Python** a gépen (a korábbi `pypdf`-es jegyzet elavult); PDF-olvasáshoz külön kell telepíteni, ha szükséges.
+- A repóban 1 commit van (`repo init`), `main` ág.
 ## 5. PDF-ek olvasása
 - A PDF-ek olvashatók: `python -m pip install pypdf`, majd `PdfReader(...).pages[i].extract_text(extraction_mode='layout')` (az alapmód szavanként tördel; a `layout` mód olvasható). `PYTHONIOENCODING=utf-8` kell a magyar kimenethez.
 - A kinyert szöveget ideiglenesen a `%TEMP%` alá tedd, ne a repóba.
@@ -49,7 +52,7 @@
 
 ## 6. Repó szerkezet (jelenlegi / tervezett)
 - `Prezentáció/` – a kész prezentáció és a jegyzetek (lezárva).
-- `Beadandó/` – ide kerül a megoldás (üres).
+- `Beadandó/` – a megoldás: `CMakeLists.txt`, `src/` (`heightmap.h/.cpp` beolvasó, `main.cpp`, `hello.cu`), `heightmaps_for_contours/` (hdata.txt 1650×2244 – 29 MB, hdata2.txt 250×250), `stb_image_write.h`.
 - `Órai anyag/` – kurzusanyag, **gitignore-olt**.
 - `.gitignore` – C/C++ szabályok + `Órai anyag/` + ez az instrukciós fájl.
 - Tervezett: `Beadandó/src/` (host + kernelek), `Beadandó/data/` (letöltött térképek, gitignore: `data/*.txt`), `Beadandó/docs/` (riport, grafikonok), `Beadandó/bench/` (mérőscriptek).
@@ -65,7 +68,7 @@
 - [x] API: **CUDA** (döntés: felhasználó, 2026-11-09; a célgépen NVIDIA GPU van). Az Intel-gépen nem futtatható, csak szerkesztésre használjuk.
 - [ ] Kimenet: PNG elsőként, OpenGL (OpenCL–GL interop) másodikként.
 - [ ] Bézier rész: **kötelező a projektben** (felhasználó döntése, 2026-11-09), nem opcionális. Láncolás + tridiagonális solver + Bézier-rasterizálás, lásd 10. szekció.
-- [ ] Teszt adatok letöltése a mintakönyvtárból, méretek felmérése.
+- [x] Teszt adatok: `Beadandó/heightmaps_for_contours/`. **Formátum:** hdata2.txt soronként 1 CRLF, hdata.txt dupla CRLF a sorok között → a beolvasó az üres sorokat kihagyja, a szélességet az első nem üres sorból veszi, egyenetlen sort hibának jelez. hdata: 1650×2244, 437.5–1791.6 m (beolvasás ~0.76 s); hdata2: 250×250, 769.5–1791.4 m.
 
 ## 10. Teljes algoritmus (tisztázott, kötelező sorrend)
 1. **Beolvasás (CPU):** szöveg → `h[]` float tömb (`H·W`), GPU-ra másolás.
