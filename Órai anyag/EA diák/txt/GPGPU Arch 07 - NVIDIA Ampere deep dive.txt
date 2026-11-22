@@ -1,0 +1,777 @@
+NVIDIA - Ampere
+deep dive
+Gábor Valasek
+                LAST UPDATED: MARCH 2024
+At a glance
+●   Ampere was the second generation ray tracing NVIDIA GPU released in 2020
+●   It is an umbrella term, as for most NVIDIA GPUs, it encapsulates two distinct
+    product lines:
+     ○   The first release was the A100 which is a data center GPU
+     ○   This was followed by the GA102 and GA104 chips, first introduced with
+          ■ GA102: 3080, 3090, A6000 RTX, A40
+          ■ GA104: 3070
+●   It is based on Samsung’s ‘8nm’ 8N process
+In numbers
+●   7 GPCs
+●   Each GPC contains
+     ○   6 TPCs
+     ○   1 raster engine
+     ○   (NEW) 2 ROP partitions
+     ○   (NEW) 8 ROP units per ROP partition
+●   Each TPC contains
+     ○   2 SMs
+     ○   1 polymorph engine
+●   Each SM contains
+     ○   128 CUDA cores
+     ○   4 Texture units
+     ○   4 Tensor Cores (3rd gen)
+     ○   1 RT Core (2nd gen)
+     ○   256 KB register file partitioned into 4 64 KB parts
+     ○   128 KB of configurable L1/Shared memory
+In numbers
+●   12 x 32 bit memory controllers (384 bit)
+●   512 KB L2 cache per controller (6144 KB in total)
+●   An SM partition can now service 2 FP32 operations per clock (in Turing: it
+    could only double issue a float-int operation pair)
+SM
+SM
+
+
+
+
+     Unified cache that serves as
+     * shared memory,
+     * L1 data cache, and
+     * texture cache
+
+     128 bytes/clock
+SMSP
+
+                       Uniform
+                                    General registers (64KB)
+                      registers
+
+
+                                     FP32
+
+
+                                     FP32
+            Warp
+  L0 I$                              INT32
+          scheduler
+
+                                      SFU
+
+
+                                  Tensor (MMA)
+SMSP
+          NVIDIA refers to these pipelines as ‘datapaths’.
+
+                                       Uniform
+                                                              General registers (64KB)
+                                      registers
+
+
+                                                              16xFP32
+
+
+                                                             16xFP32 or
+               Warp
+  L0 I$                                                      16xINT32
+             scheduler
+
+                                                               4xSFU
+
+
+                                                         1xTensor (MMA)
+SM
+●   Re-arranged the two main datapaths:
+     ○   1 with 16 FP32 CUDA Cores
+     ○   1 with 16 FP32 CUDA Cores and 16 INT32
+●   Tricky: each clock, an SM partition can
+     ○   either execute 32 FP32 operations
+     ○   or execute 16 FP32 and 16 INT32 operations
+●   They kept the Turing double-speed FP16 operations (HFMA)
+Unified shared memory
+●   Graphics mode: 64 KB L1 data/texture cache + 48 KB shared + 16 KB
+    reserved for the graphics pipeline operations
+●   In compute mode:
+                    L1                             Shared
+
+                  128 KB                             0 KB
+
+                  120 KB                             8 KB
+
+                  112 KB                            16 KB
+
+                   96 KB                            32 KB
+
+                   64 KB                            64 KB
+
+                   28 KB                            100 KB
+Tensor cores
+●   4 per SM
+●   256 FP16/32 FMA per clock
+●   3rd gen now supports FP16, BF16 (alternative to IEEE FP16), TF32 (‘tensor
+    float’), FP64, INT8, INT4, binary (INT1)
+     ○   FP16/BF16 has 16x larger throughput in tensor cores than FP32
+●   TF32 basically retains the exponent range of FP32 but discards mantissa bits
+    beyond what is representable with FP16
+●   Faster execution if your input matrices are (lower bound) matches of
+    particular sparsity patterns
+Tensor cores
+NVIDIA types
+Structured sparsity acceleration
+RT cores
+●   Some caching and throughput optimizations
+●   And some other nice goodies
+NVIDIA ISA
+NVIDIA ISA levels
+
+
+               API               API   API
+
+
+
+
+         IL          IL           IL   IL
+
+
+
+                          PTX
+
+
+
+                          SASS
+Instruction
+There are two types of instructions:
+
+●   Fixed latency (coupled)
+●   Unknown latency (decoupled)
+
+On Maxwell, fixed latency counting was moved into the compiler while unknown
+latencies are handled via barriers.
+float4 main() : SV_TARGET
+{
+    return float4(1,0,0, 1);
+}
+float4 main() : SV_TARGET
+{
+    return float4(1,0,0, 1);
+}
+
+
+
+
+     IMAD.MOV.U32 R0, RZ, RZ, 0x3f800000
+     MOV R2, RZ
+     IMAD.MOV.U32 R1, RZ, RZ, RZ
+     MOV R3, 0x3f800000
+     EXIT
+     BRA 0x50
+     NOP
+     NOP
+float4 main() : SV_TARGET
+{
+    return float4(1,0,0, 1);
+}
+                    [guard pred] opcode[.modifiers] dst, [dst pred], src0, …
+
+
+
+     IMAD.MOV.U32 R0, RZ, RZ, 0x3f800000
+     MOV R2, RZ
+     IMAD.MOV.U32 R1, RZ, RZ, RZ
+     MOV R3, 0x3f800000
+     EXIT
+     BRA 0x50
+     NOP
+     NOP
+float4 main() : SV_TARGET
+{
+    return float4(1,0,0, 1);
+                       SASS is intentionally not documented. You can guess a bit.
+}                                    Others have done a bit more too:
+                      https://nintyconservation9619.github.io/Switch%20SDK/Docs
+                         -JAP/Documents/Package/contents/SASS/opcodes.htm
+
+
+     IMAD.MOV.U32 R0, RZ, RZ, 0x3f800000
+     MOV R2, RZ
+     IMAD.MOV.U32 R1, RZ, RZ, RZ
+     MOV R3, 0x3f800000
+     EXIT
+     BRA 0x50
+     NOP
+     NOP
+float4 main() : SV_TARGET
+{
+    return float4(1,0,0, 1);
+}
+
+
+
+
+     IMAD.MOV.U32 R0, RZ, RZ, 0x3f800000
+     MOV R2, RZ
+     IMAD.MOV.U32 R1, RZ, RZ, RZ
+     MOV R3, 0x3f800000
+     EXIT
+     BRA 0x50
+     NOP
+     NOP
+Registers
+●   R0-254 registers are general purpose local registers (like VGPRs on AMD)
+●   RZ is a special ZERO register
+float4 main() : SV_TARGET
+{
+    return float4(0.125, 0.25, 0.5, 1.0);
+}
+float4 main() : SV_TARGET
+{
+    return float4(0.125, 0.25, 0.5, 1.0);
+}
+
+
+
+
+    IMAD.MOV.U32 R0, RZ, RZ, 0x3e000000
+    MOV R2, 0x3f000000
+    IMAD.MOV.U32 R1, RZ, RZ, 0x3e800000
+    MOV R3, 0x3f800000
+    EXIT
+    BRA 0x50
+    NOP
+    NOP
+float4 main() : SV_TARGET
+{
+    return float4(0.125, 0.25, 3.14159, 1.0);
+}
+
+
+
+
+    IMAD.MOV.U32 R0, RZ, RZ, 0x3e000000
+    MOV R2, 0x40490fd0
+    IMAD.MOV.U32 R1, RZ, RZ, 0x3e800000
+    MOV R3, 0x3f800000
+    EXIT
+    BRA 0x50
+    NOP
+    NOP
+float4 main(float2 texC: TEXCOORD) : SV_TARGET
+{
+    return float4(texC, 0, 1);
+}
+float4 main(float2 texC: TEXCOORD) : SV_TARGET
+{
+    return float4(texC, 0, 1);
+}
+
+
+
+        IPA.PASS R4, a[0x7c]
+        IPA.PASS R1, a[0x80]
+        IPA.PASS R3, a[0x84]
+        MOV R2, RZ
+        MUFU.RCP R4, R4
+        FMUL.FTZ.RZ R0, R4, R1
+        FMUL.FTZ.RZ R1, R4, R3
+        MOV R3, 0x3f800000
+        EXIT
+        BRA 0x90
+float4 main(float2 texC: TEXCOORD) : SV_TARGET
+{
+    return float4(texC, 0, 1);
+}
+
+
+                                       Address registers. More on this:
+        IPA.PASS R4, a[0x7c]          https://nintyconservation9619.gith
+        IPA.PASS R1, a[0x80]          ub.io/Switch%20SDK/Docs-JAP/D
+                                      ocuments/Package/contents/SAS
+        IPA.PASS R3, a[0x84]                 S/opcodes/opIPA.htm
+        MOV R2, RZ
+        MUFU.RCP R4, R4
+        FMUL.FTZ.RZ R0, R4, R1
+        FMUL.FTZ.RZ R1, R4, R3
+        MOV R3, 0x3f800000
+        EXIT
+        BRA 0x90
+float4 main(noperspective float2 texC: TEXCOORD) : SV_TARGET
+{
+    return float4( texC.xy, 1.0.xx );
+}
+
+
+                      IPA.PASS R0, a[0x80]
+                      IPA.PASS R1, a[0x84]
+                      MOV R2, 0x3f800000
+                      MOV R3, 0x3f800000
+                      EXIT
+                      BRA 0x50
+                      NOP
+                      NOP
+float4 main(float2 texC: TEXCOORD) : SV_TARGET
+{
+    float val = texC.x * texC.y + texC.x;
+    return float4(val.xxx, 1.0);
+}
+
+     IPA.PASS R4, a[0x7c]
+     IPA.PASS R1, a[0x80]
+     IPA.PASS R3, a[0x84]
+     MUFU.RCP R4, R4
+     FMUL.FTZ.RZ R0, R4, R1
+     FMUL.FTZ.RZ R1, R4, R3
+     MOV R3, 0x3f800000
+     FFMA.FTZ R0, R0, R1, R0
+     MOV R1, R0
+     MOV R2, R0
+     EXIT
+float4 main(float2 texC: TEXCOORD) : SV_TARGET
+{
+    float val = sin(texC.x);
+    return float4(val.xxx, 1.0);
+}
+
+     IPA.PASS R4, a[0x7c]
+     IPA.PASS R1, a[0x80]
+     MOV R3, 0x3f800000
+     MUFU.RCP R0, R4
+     FMUL.FTZ.RZ R0, R0, R1
+     FMUL.FTZ.RZ R0, R0, 0.15915493667125701904
+     MUFU.SIN R0, R0
+     MOV R1, R0
+     MOV R2, R0
+     EXIT
+float4 main(float2 texC: TEXCOORD) : SV_TARGET
+{
+    float val = tan(texC.x);
+    return float4(val.xxx, 1.0);
+}
+
+
+      IPA.PASS R5, a[0x7c]
+      IPA.PASS R6, a[0x80]
+      MOV R3, 0x3f800000
+      MUFU.RCP R5, R5
+      FMUL.FTZ.RZ R6, R5, R6
+      FMUL.FTZ.RZ R6, R6, 0.15915493667125701904
+      MUFU.COS R4, R6
+      MUFU.SIN R0, R6
+      MUFU.RCP R1, R4
+      FMUL.FTZ R0, R0, R1
+      MOV R1, R0
+      MOV R2, R0
+      EXIT
+float4 main(float2 texC: TEXCOORD) : SV_TARGET
+{
+    if (texC.x < 0.5) return float4(1, 0, 0, 1);
+    else              return float4(0, 1, 0, 1);
+}
+float4 main(float2 texC: TEXCOORD) : SV_TARGET
+{
+    if (texC.x < 0.5) return float4(1, 0, 0, 1);
+    else               return float4(0, 1, 0, 1);
+}
+
+
+
+     IPA.PASS R4, a[0x7c]
+     IPA.PASS R0, a[0x80]
+     IMAD.MOV.U32 R2, RZ, RZ, RZ
+     MOV R3, 0x3f800000
+     MUFU.RCP R1, R4
+     FMUL.FTZ.RZ R1, R1, R0
+     FSET.BF.LT.FTZ.AND R0, R1, 0.5, PT
+     FSET.BF.GEU.FTZ.AND R1, R1, 0.5, PT
+     EXIT
+     BRA 0x90
+float4 main(float2 texC: TEXCOORD) : SV_TARGET
+{
+    if (texC.x < 0.5) return float4(1, 0, 0, 1);
+    else               return float4(0, 1, 0, 1);
+}
+
+                                            GEU = greater-or-equal OR
+     IPA.PASS R4, a[0x7c]            unordered: the latter means that NaNs
+                                     will fall on the then branch despite the
+     IPA.PASS R0, a[0x80]             fact that IEEE 754 would require it to
+     IMAD.MOV.U32 R2, RZ, RZ, RZ                   go on the else.
+     MOV R3, 0x3f800000
+     MUFU.RCP R1, R4
+     FMUL.FTZ.RZ R1, R1, R0
+     FSET.BF.LT.FTZ.AND R0, R1, 0.5, PT
+     FSET.BF.GEU.FTZ.AND R1, R1, 0.5, PT
+     EXIT
+     BRA 0x90
+float4 main(float2 texC: TEXCOORD) : SV_TARGET
+{
+    if (texC.x < 0.5) return float4(0.7, 0, 0, 1);
+    else               return float4(0, 0.8, 0, 1);
+}
+
+     IPA.PASS R4, a[0x7c]
+     IPA.PASS R1, a[0x80]
+     IMAD.MOV.U32 R2, RZ, RZ, RZ
+     IMAD.MOV.U32 R3, RZ, RZ, 0x3f800000
+     MUFU.RCP R0, R4
+     FMUL.FTZ.RZ R0, R0, R1
+     FSETP.GEU.FTZ.AND P0, PT, R0, 0.5, PT
+     FSEL R0, RZ, 0.69999998807907104492, P0
+     FSEL R1, RZ, 0.80000001192092895508, !P0
+     EXIT
+     BRA 0xa0
+float4 main(float2 texC: TEXCOORD) : SV_TARGET
+{
+    if (texC.x < 0.5) return float4(0.7, 0, 0, 1);
+    else               return float4(0, 0.8, 0, 1);
+}
+
+     IPA.PASS R4, a[0x7c]                    These are predicate registers that
+                                              control conditional execution of
+     IPA.PASS R1, a[0x80]                      lines, i.e. divergence. PT is a
+     IMAD.MOV.U32 R2, RZ, RZ, RZ                special predicate for TRUE.
+     IMAD.MOV.U32 R3, RZ, RZ, 0x3f800000
+                                                  FSETP: set predicate.
+     MUFU.RCP R0, R4
+     FMUL.FTZ.RZ R0, R0, R1
+     FSETP.GEU.FTZ.AND P0, PT, R0, 0.5, PT
+     FSEL R0, RZ, 0.69999998807907104492, P0
+     FSEL R1, RZ, 0.80000001192092895508, !P0
+     EXIT
+     BRA 0xa0
+float4 main(float2 texC: TEXCOORD) : SV_TARGET
+{
+    if (texC.x > 0.5) return float4(0.7, 0, 0, 1);
+    else               return float4(0, 0.8, 0, 1);
+}
+
+     IPA.PASS R4, a[0x7c]
+     IPA.PASS R1, a[0x80]
+     IMAD.MOV.U32 R2, RZ, RZ, RZ
+     IMAD.MOV.U32 R3, RZ, RZ, 0x3f800000
+     MUFU.RCP R0, R4
+     FMUL.FTZ.RZ R0, R0, R1
+     FSETP.GT.FTZ.AND P0, PT, R0, 0.5, PT
+     FSEL R0, RZ, 0.69999998807907104492, !P0
+     FSEL R1, RZ, 0.80000001192092895508, P0
+     EXIT
+     BRA 0xa0
+float4 main(float2 texC: TEXCOORD) : SV_TARGET
+{
+    float val = texC.x < texC.y ? sin(texC.x) : cos(texC.y);
+    return float4(val.xxx, 1.0);
+}
+
+           IPA.PASS R4, a[0x7c]
+           IPA.PASS R1, a[0x80]
+           IPA.PASS R3, a[0x84]
+           MUFU.RCP R4, R4
+           FMUL.FTZ.RZ R1, R4, R1
+           FMUL.FTZ.RZ R6, R4, R3
+           MOV R3, 0x3f800000
+           FMUL.FTZ.RZ R5, R1, 0.15915493667125701904
+           FSETP.GEU.FTZ.AND P0, PT, R1, R6, PT
+           FMUL.FTZ.RZ R6, R6, 0.15915493667125701904
+           MUFU.SIN R0, R5
+           @P0    MUFU.COS R0, R6
+           MOV R1, R0
+           MOV R2, R0
+           EXIT
+float4 main(float2 texC: TEXCOORD) : SV_TARGET
+{
+    float val = texC.x < texC.y ? sin(texC.x) : cos(texC.y);
+    return float4(val.xxx, 1.0);
+}
+
+           IPA.PASS R4, a[0x7c]
+           IPA.PASS R1, a[0x80]
+           IPA.PASS R3, a[0x84]
+           MUFU.RCP R4, R4
+           FMUL.FTZ.RZ R1, R4, R1
+           FMUL.FTZ.RZ R6, R4, R3
+           MOV R3, 0x3f800000
+           FMUL.FTZ.RZ R5, R1, 0.15915493667125701904   Only execute this line if P0 is
+           FSETP.GEU.FTZ.AND P0, PT, R1, R6, PT          true. Negation is OK, so:
+           FMUL.FTZ.RZ R6, R6, 0.15915493667125701904    @P0: execute if P0 is true
+           MUFU.SIN R0, R5
+                                                        @!P0: execute if P0 is false
+                                                           @PT: always execute
+           @P0    MUFU.COS R0, R6
+           MOV R1, R0
+           MOV R2, R0
+           EXIT
+Control code
+●   Instructions are 8 bytes
+●   Every couple of lines the compiler injects some execution-related information,
+    such as data stall cycles for coupled instructions, etc. called control codes
+●   Some parts of it are visible in SASS (like REUSE), some are not
+●   For example, Maxwell uses 8 bytes (every 3 lines) to set the properties of the
+    subsequent 3 lines
+●   The 8 bytes are decomposed into 3x21 bits:
+
+
+     stall : yield : write barrier : read barrier : wait barrier
+Control code
+●   Instructions are 8 bytes
+●   Every couple of lines the compiler injects some execution-related information,
+    such as data stall cycles for coupled instructions, etc. called control codes
+●   Some parts of it are visible in SASS (like REUSE), some are not
+●   For example, Maxwell uses 8 bytes (every 3 lines) to set the properties of the
+    subsequent 3 lines
+●   The 8 bytes are decomposed into 3x21 bits:
+
+
+     stall : yield : write barrier : read barrier : wait barrier
+
+
+                   Signals that there will be a 0-15 cycles long stall after this
+                instruction. 0 means dual-issue with the subsequent instruction.
+Control code
+●   Instructions are 8 bytes
+●   Every couple of lines the compiler injects some execution-related information,
+    such as data stall cycles for coupled instructions, etc. called control codes
+●   Some parts of it are visible in SASS (like REUSE), some are not
+●   For example, Maxwell uses 8 bytes (every 3 lines) to set the properties of the
+    subsequent 3 lines
+●   The 8 bytes are decomposed into 3x21 bits:
+
+
+     stall : yield : write barrier : read barrier : wait barrier
+
+
+                          Hint. Changing warps is usually free.
+Control code
+●   Instructions are 8 bytes
+●   Every couple of lines the compiler injects some execution-related information,
+    such as data stall cycles for coupled instructions, etc. called control codes
+●   Some parts of it are visible in SASS (like REUSE), some are not
+●   For example, Maxwell uses 8 bytes (every 3 lines) to set the properties of the
+    subsequent 3 lines
+●   The 8 bytes are decomposed into 3x21 bits:
+
+
+     stall : yield : write barrier : read barrier : wait barrier
+
+
+                         Set barriers after read-write operations.
+Control code
+●   Instructions are 8 bytes
+●   Every couple of lines the compiler injects some execution-related information,
+    such as data stall cycles for coupled instructions, etc. called control codes
+●   Some parts of it are visible in SASS (like REUSE), some are not
+●   For example, Maxwell uses 8 bytes (every 3 lines) to set the properties of the
+    subsequent 3 lines
+●   The 8 bytes are decomposed into 3x21 bits:
+
+
+     stall : yield : write barrier : read barrier : wait barrier
+
+
+                  Which barrier to wait on before executing this instruction.
+ Control codes
+
+              stall : yield : write barrier : read barrier : wait barrier
+
+
+
+
+--:-:1:-:1   S2R tid, SR_TID.X;   // Set Dep 1
+--:-:2:-:1   S2R bx, SR_CTAID.X; // Set Dep 2
+--:-:3:-:1   S2R by, SR_CTAID.Y; // Set Dep 3
+01:-:-:Y:d   ISETP.GE.AND P0, PT, tid, 128, PT; // Wait Dep 1   Stall 13
+06:-:-:-:1   SEL blk, by, bx, P0;               // Wait Dep 2,3
+Control codes
+●   It was investigated upon Turing release that instructions have become 128
+    bits that includes the opcodes and the instruction dependent data (>=91 bits)
+    plus the control codes (>=23 bits)
+     ○   So no longer batched
+●   Source: https://arxiv.org/pdf/1903.07486
+Registers
+Valid destination and source locations include:
+
+     ●    RX for registers
+     ●    URX for uniform registers
+     ●    SRX for special system-controlled registers
+     ●    PX for predicate registers
+     ●    UPX for uniform predicate registers
+     ●    c[X][Y] for constant memory
+float4 main(float2 texC: TEXCOORD) : SV_TARGET
+{
+    return float4( iGlobalTime.xxx, 1.0 );
+}
+
+
+    ULDC UR4, c[0x18][0x7c]
+    IMAD.MOV.U32 R3, RZ, RZ, 0x3f800000
+    USHF.L.U32.HI UR4, URZ, 0x5, UR4
+    ULDC.64 UR6, c[0x11][0xee0]
+    UIADD3 UR4, UP0, UR4, UR6, URZ
+    UIADD3.X UR5, URZ, UR7, URZ, UP0, !UPT
+    ULDC.64 UR4, [UR4+0x18], !UPT
+    IMAD.U32 R0, RZ, RZ, cx[UR4][0x8]
+    MOV R1, cx[UR4][0x8]
+    MOV R2, cx[UR4][0x8]
+                        float4 main(float2 texC: TEXCOORD) : SV_TARGET
+                        {
+                            return float4( iGlobalTime.xxx, 1.0 );
+                        }
+
+                                                                         Constant register
+ Load from Constant         ULDC UR4, c[0x18][0x7c]
+Memory into a Uniform       IMAD.MOV.U32 R3, RZ, RZ, 0x3f800000
+      Register              USHF.L.U32.HI UR4, URZ, 0x5, UR4
+                            ULDC.64 UR6, c[0x11][0xee0]
+                            UIADD3 UR4, UP0, UR4, UR6, URZ
+                            UIADD3.X UR5, URZ, UR7, URZ, UP0, !UPT
+                            ULDC.64 UR4, [UR4+0x18], !UPT
+                            IMAD.U32 R0, RZ, RZ, cx[UR4][0x8]
+                            MOV R1, cx[UR4][0x8]
+                            MOV R2, cx[UR4][0x8]
+float3 val = normalize( texC.xyx );
+float3 val = normalize( texC.xyx );
+
+
+
+
+  IPA.PASS R5, a[0x7c]
+  IPA.PASS R0, a[0x80]
+  IPA.PASS R2, a[0x84]
+  MUFU.RCP R5, R5
+  FMUL.FTZ.RZ R0, R5, R0
+  FMUL.FTZ.RZ R1, R5, R2
+  FMUL.FTZ R2, R0, R0
+  FFMA.FTZ R3, R1, R1, R2
+  FFMA.FTZ R4, R0, R0, R3
+  MOV R3, 0x3f800000
+  MUFU.RSQ R4, R4
+  FMUL.FTZ R0, R0, R4
+  FMUL.FTZ R1, R1, R4
+  MOV R2, R0
+float3 n          = texC.xyx;
+float   lenSq     = dot(n, n);
+float   oneOverLen = ( lenSq != 0.0 ) ? rsqrt( lenSq ) : 1.0;
+float3 val = oneOverLen * n;
+float3 n           = texC.xyx;
+float   lenSq      = dot(n, n);
+float   oneOverLen = ( lenSq != 0.0 ) ? rsqrt( lenSq ) : 1.0;
+float3 val = oneOverLen * n;
+
+                  IPA.PASS R5, a[0x7c]
+                  IPA.PASS R0, a[0x80]
+                  IPA.PASS R2, a[0x84]
+                  MUFU.RCP R5, R5
+                  FMUL.FTZ.RZ R0, R5, R0
+                  FMUL.FTZ.RZ R1, R5, R2
+                  FMUL.FTZ R2, R0, R0
+                  FFMA.FTZ R3, R1, R1, R2
+                  FFMA.FTZ R4, R0, R0, R3
+                  MOV R3, 0x3f800000
+                  FSETP.NEU.FTZ.AND P0, PT, R4, RZ, PT
+                  MUFU.RSQ R2, R4
+                  FSEL R2, R2, 1, P0
+                  FMUL.FTZ R0, R0, R2
+                  FMUL.FTZ R1, R1, R2
+                  MOV R2, R0
+for ( int i = 0; i < 16; ++i ) val += texC.x;
+for ( int i = 0; i < 16; ++i ) val += texC.x;
+
+
+
+
+         IPA.PASS R4, a[0x7c]
+         IPA.PASS R1, a[0x80]
+         MOV R3, 0x3f800000
+         MUFU.RCP R0, R4
+         FMUL.FTZ.RZ R0, R0, R1
+         FFMA.FTZ R0, R0, 15, R0
+         MOV R1, R0
+         MOV R2, R0
+float4 main(float2 texC: TEXCOORD) : SV_TARGET
+{
+    return float4( acos(texC.x).xxx, 1.0 );
+}
+IPA.PASS R5, a[0x7c]
+IPA.PASS R0, a[0x80]
+MOV R3, 0x3f000000
+MUFU.RCP R1, R5
+FMUL.FTZ.RZ R1, R1, R0
+FADD.FTZ R0, -RZ, -|R1|
+FSETP.NEU.FTZ.AND P1, PT, |R1|, 1, PT
+FSETP.GT.FTZ.AND P0, PT, |R1|, 0.56000000238418579102, PT
+FFMA.FTZ R0, R0, R3, 0.5
+MUFU.RSQ R3, R0
+FMUL.FTZ R2, R0, R3
+FMUL.FTZ R4, R3, 0.5
+FADD.FTZ R3, -RZ, -R2
+FFMA.FTZ R3, R3, R4, 0.5
+FFMA.FTZ R3, R2, R3, R2                                     float4 main(float2 texC: TEXCOORD) : SV_TARGET
+FSEL R2, R3, RZ, P1
+MOV R3, 0x3d10ecef                                          {
+FSEL R2, R2, |R1|, P0
+FSETP.GT.FTZ.AND P1, PT, R1, 0.56000000238418579102, PT         return float4( acos(texC.x).xxx, 1.0 );
+LOP3.LUT R2, R2, 0x80000000, R1, 0xf8, !PT
+FMUL.FTZ R0, R2, R2                                         }
+FFMA.FTZ R3, R0, R3, 0.016980519518256187439
+FFMA.FTZ R3, R0, R3, 0.030762933194637298584
+FFMA.FTZ R3, R0, R3, 0.044709417968988418579
+FFMA.FTZ R3, R0, R3, 0.074989043176174163818
+FFMA.FTZ R3, R0, R3, 0.16666707396507263184
+FMUL.FTZ R3, R0, R3
+FFMA.FTZ R0, R2, R3, R2
+MOV R2, 0x3fd774eb
+MOV R3, 0x3f800000
+FADD.FTZ R1, -RZ, -R0
+FSEL R1, R0, R1, P0
+@!P1 FFMA.FTZ R0, R2, 0.93318945169448852539, R1
+@P0   FMUL.FTZ R0, R0, 2
+MOV R1, R0
+float4 main(float2 texC: TEXCOORD) : SV_TARGET
+{
+    float val = 0.0;
+    for ( int i = 0; i < iterMax; ++i ) val += texC.r;
+
+
+    return float4( val.xxx, 1.0 );
+}
+IPA.PASS R1, a[0x7c]
+ULDC UR4, c[0x18][0x7c]
+IPA.PASS R0, a[0x80]
+USHF.L.U32.HI UR4, URZ, 0x5, UR4
+ULDC.64 UR6, c[0x11][0xee0]
+UIADD3 UR4, UP0, UR4, UR6, URZ
+UIADD3.X UR5, URZ, UR7, URZ, UP0, !UPT
+ULDC.64 UR4, [UR4+0x18], !UPT
+ISETP.LT.AND P0, PT, RZ, cx[UR4][0xc], PT
+MUFU.RCP R1, R1
+FMUL.FTZ.RZ R3, R1, R0
+@!P0 IMAD.MOV.U32 R0, RZ, RZ, RZ
+@!P0 BRA 0x220                               float4 main(float2 texC: TEXCOORD) : SV_TARGET
+IMAD.U32 R2, RZ, RZ, cx[UR4][0xc]
+PLOP3.LUT P0, PT, PT, PT, PT, 0x80, 0x0      {
+CS2R R0, SRZ                                     float val = 0.0;
+ISETP.GT.AND P1, PT, R2, 0x3, PT
+@!P1 BRA 0x190                                   for ( int i = 0; i < iterMax; ++i ) val += texC.r;
+PLOP3.LUT P0, PT, PT, PT, PT, 0x8, 0x0
+IADD3 R2, R2, -0x3, RZ
+IADD3 R1, R1, 0x4, RZ                            return float4( val.xxx, 1.0 );
+FFMA.FTZ R0, R3, 4, R0
+ISETP.GE.AND P1, PT, R1, R2, PT
+                                             }
+@!P1 BRA 0x140
+IMAD.MOV.U32 R2, RZ, RZ, R0
+IADD3 R4, -R1, cx[UR4][0xc], RZ
+ISETP.GT.AND P1, PT, R4, 0x1, PT
+@P1 PLOP3.LUT P0, PT, PT, PT, PT, 0x8, 0x0
+@P1 FFMA.FTZ R0, R3, 2, R0
+@P1 IADD3 R1, R1, 0x2, RZ
+@P1 IMAD.MOV.U32 R2, RZ, RZ, R0
+ISETP.LT.OR P0, PT, R1, cx[UR4][0xc], P0
+@P0 FADD.FTZ R2, R3, R0
+IMAD.MOV.U32 R0, RZ, RZ, R2
+IMAD.MOV.U32 R1, RZ, RZ, R0
+IMAD.MOV.U32 R2, RZ, RZ, R0
+IMAD.MOV.U32 R3, RZ, RZ, 0x3f800000
+

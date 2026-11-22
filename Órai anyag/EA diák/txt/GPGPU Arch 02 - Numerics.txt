@@ -1,0 +1,260 @@
+GPGPU - architectures
+                     02
+     Gábor Valasek (valasek@inf.elte.hu)
+Implementation
+IEEE 754-1985
+●   32 and 64 bit formats with radix 2 (754-2008 calls these binary32 and
+    binary64)
+●   Both of these formats have extended variants
+IEEE 754-1985
+●   32 and 64 bit formats with radix 2 (754-2008 calls these binary32 and
+    binary64)
+                                                       Mind the +1-s due to
+●   Both of these formats have extended variants         the implicit 1 bit
+IEEE 754-1985
+●   Rounding modes:
+     ○   Round to {minus infinity, plus infinity, zero, nearest}
+     ○   Round to nearest has a tie-breaker such that the nearest even number should be returned (it
+         is often called round-to-nearest-even)
+IEEE 754-1985
+●   Initially, rounding direction was meant to be a global state
+    (usually, modern CPUs use per micro-op attributes instead)
+●   Some methods switch between them often (e.g. interval arithmetics)
+●   However, in pipelined systems this incurs an extra cost: the fp pipelines need
+    to be flushed before altering the rounding
+●   These may be circumvented by some useful identities
+IEEE 754-1985
+●   Operations:
+     ○   The results of the following operations have to be correctly rounded: +, -, *, /, sqrt
+     ○   Correctly rounded means wrt. the floating point representation of the exact result
+●   Conversion to and from decimal strings
+●   Floating point exceptions: invalid, division by zero, overflow, underflow,
+    inexact
+     ○   Either calling a trap or setting a status flag
+Floating point numbers VS real numbers
+●   + and * are commutative:
+         fl(a + b) = fl(b + a),
+         fl(a*b) = fl(b*a)
+●   + and * are not associative:
+         fl(a + fl(b + c)) != fl(fl(a + b) + c)
+●   + and * are not distributive:
+         fl(a * fl(b + c)) != fl(fl(a*b) + fl(a*c))
+●   0.0 * x != 0.0
+●   fma(a, b, c) != fl(fl(a*b) + c)
+IEEE 854-1987
+●   Radix-independent formulations
+●   Various ‘hotfixes’
+IEEE 754-2008
+●   Merged the two previous standards and also incorporated two decades worth
+    of hardware evolution
+●   Algorithmic and theoretical improvements made certain prescribed precision
+    constraints overly relaxed
+●   Fused multiply-add (FMA) standardized:
+     ○   fma(a, b, c) = fl(a*b + c), that is, it only uses a single rounding, a*b is kept at higher precision,
+         where fl(x) is the floating point representation of the real number x
+     ○   This single instruction makes writing robust code much easier
+●   Also added a lot more (quadruple types, etc.)
+Exact operations - subtraction
+●   We state the following results on radix 2 floats, however, most of them hold
+    for more or arbitrary radices
+●   Sterbenz lemma: let x, y be nonnegative finite floating-point numbers such
+    that           , then x - y is exact with any rounding mode.
+Exact operations - subtraction
+●   We state the following results on radix 2 floats, however, most of them hold
+    for more or arbitrary radices
+●   Sterbenz lemma: let x, y be nonnegative finite floating-point numbers such
+    that           , then x - y is exact with any rounding mode.
+●   Consider the following (exact result is 0.6000000015)
+Exact operations - subtraction
+●   We state the following results on radix 2 floats, however, most of them hold
+    for more or arbitrary radices
+●   Sterbenz lemma: let x, y be nonnegative finite floating-point numbers such
+    that           , then x - y is exact with any rounding mode.
+●   Consider the following (exact result is 0.6000000015)
+Errors
+●   Most of those who have learnt about ‘error’ heard them in the context of
+    numerical analysis (‘nummód’ in ELTE lingo)
+●   The main concern there is the inherently approximative nature of floating point
+    numbers with respect to real numbers
+●   However, exact here focuses on what can be done on floating-point numbers
+    and whether the result is a floating point number and if it can be obtained by
+    simple means
+●   The previous floating point computation is exact but it magnified the inherent
+    error in the representation of 1/10 in binary floating point
+Exact operations - products
+If x and y are such that
+
+
+
+
+and kx + ky < p (i.e. 23 and 53 for binary32 and binary64) holds, then x*y is exact,
+i.e. fl(x*y) = x*y.
+Exact operations - sum of two numbers
+Theorem. Assuming that the exponent of a is larger than or equal to that of b and
+RN(a+b) is a finite floating-point number, the following algorithm computes s, t
+such that a + b = s + t, where s is the closest floating-point number to a+b:
+Exact operations - sum of two numbers
+If we cannot afford ordering the two arguments, the following algorithm gives the
+exact result for the sum of two floating-point numbers:
+Exact operations - product of two numbers
+The following algorithm returns r1, r2 such that x1 * x2 = r1 + r2
+Exact operations - beyond the basics
+●   The general tactic is to bring the quantity we want to compute and the input
+    closer to each other, then FMA the result to get a compensation term
+●   There are non-FMA formulations but more cumbersome
+●   Newton-Raphson based operations (such as division or square root) can also
+    utilize FMA
+●   But none of these work if the programming language and/or the compiler does
+    non IEEE compliant optimizations
+Number conversions
+
+
+   src/dst     int32_t         float               double
+
+   int32_t     exact           rounding            exact
+
+   float       round-to-zero   exact               exact
+
+   double      round-to-zero   rounding/overflow   exact
+Example - 2x2 determinants
+●   Theoretically, simple: a*b - c*d
+●   Consider the case of
+●   In binary32, the result is -128.0f
+●   In binary64, the result is -75.1656
+
+inline float DifferenceOfProducts(float a, float b, float c, float d) {
+    float cd = c * d;
+    float err = std::fma(-c, d, cd);
+    float dop = std::fma(a, b, -cd);
+    return dop + err;
+}
+Example - 2x2 determinants
+●   Theoretically, simple: a*b - c*d
+●   Consider the case of
+●   In binary32, the result is -128.0f
+●   In binary64, the result is -75.1656
+
+inline float DifferenceOfProducts(float a, float b, float c, float d) {
+    float cd = c * d;
+    float err = std::fma(-c, d, cd);
+    float dop = std::fma(a, b, -cd);       The compiler should not replace this with
+                                           zero! Algebraically, it would have to be 0.
+    return dop + err;
+}
+FMA in MSVC - in practice
+●   Simply using std::fma achieves no performance gains - if you don’t set up
+    your project properly, you will end up with extremely expensive calls to a
+    software FMA implementation
+●   You need two things for std::fma to amount to actual CPU instructions:
+     ○   use optimizations (/O2)
+     ○   set architecture to AVX2 (/arch:AVX2)
+●   Test it here: https://godbolt.org/z/qz5b3rfT1
+Floating-point execution units
+x87:
+
+●      8 pieces of 80 bit extended double precision registers
+●      Internally, executes operations on 80 bit extended double precision
+Floating-point execution units
+●   SSE: fully IEEE 754-1985
+●   AVX: fully IEEE 754-2008
+●   The price of doubles over floats manifests in execution throughput as well, not
+    just in memory bandwidth
+Floats and languages: in practice
+Beware fast math
+●   It turns on multiple things: https://simonbyrne.github.io/notes/fastmath/
+●   GCC with -O1 and -ffast-math
+Beware fast math
+●   It turns on multiple things: https://simonbyrne.github.io/notes/fastmath/
+●   GCC with -O1 and without -ffast-math
+What fast-math really does (in GCC)
+It toggles the following:
+-fno-math-errno,
+-funsafe-math-optimizations:
+    -fno-signed-zeros,
+    -fno-trapping-math,
+    -fassociative-math,
+    -freciprocal-math
+-ffinite-math-only,
+-fno-rounding-math,
+-fno-signaling-nans,
+-fcx-limited-range
+-fexcess-precision=fast
+What fast-math really does (in GCC)
+It toggles the following:
+-fno-math-errno,
+-funsafe-math-optimizations:
+    -fno-signed-zeros,
+    -fno-trapping-math,
+    -fassociative-math,
+    -freciprocal-math
+-ffinite-math-only,            This replaces std::isnan and similar checks by
+-fno-rounding-math,            ‘false’ bools. You still may be able to have
+-fno-signaling-nans,           some luck with fiddling with the exponents and
+-fcx-limited-range             mantissa bits.
+-fexcess-precision=fast
+What fast-math really does (in GCC)
+It toggles the following:
+-fno-math-errno,
+-funsafe-math-optimizations:
+    -fno-signed-zeros,
+    -fno-trapping-math,
+    -fassociative-math,        This allows the compiler to auto-vectorize or
+    -freciprocal-math          just merely select a more pipeline-friendly
+-ffinite-math-only,            execution for expressions such as
+-fno-rounding-math,
+                               a + b + c + d.
+-fno-signaling-nans,
+-fcx-limited-range
+-fexcess-precision=fast        Also, this will make your life harder when you
+                               want to implement compensated sums!
+What fast-math really does (in GCC)
+●   It also sets the flush-denormals-to-zero behaviour
+●   Unfortunately, you do need denormals for Sterbenz lemma to work
+●   If you have a (very niche) library that relies on it, you are running the risk of
+    causing subtle bugs in it if it is running on thread
+Math modes in MSVC
+●   Floating point mode docs:
+    https://learn.microsoft.com/en-us/cpp/build/reference/fp-specify-floating-point-
+    behavior?view=msvc-170
+●   Main modes:
+     ○   Precise: this is the default. Rounding happens at 1) assignment 2) typecast 3) argument
+         passing to function call 4) return from function call. Conformal to IEEE 754. However, the
+         compiler assumes that the user is not changing rounding modes.
+     ○   Strict: more restricted that precise, the compiler has to place extra code to trap floating point
+         exceptions, etc. The former can be also achieved by turning fp:except on.
+     ○   Fast: similar to fast math on GCC.
+●   Contract: allows the compiler to inject FMAs for precise mode.
+Floating point number tricks
+●   Be NaN-defensive: if your condition involves floating point comparisons, be
+    prepared that NaNs will take the false branch (unless x != x is the condition):
+    return (val != 0.0f ? 1.0f / val : 1.0f);
+●   Mind contracted expressions:
+Numerical disasters
+●   The Patriot Incident:
+     ○   February 25, 1991 - a Patriot battery failed to neutralize an incoming Scud missile, resulting in
+         the death of 28 soldiers and the injury of 100
+     ○   This was caused by a numerical error:
+           ■ The system counted the elapsed time since boot in tenth of seconds
+           ■ It multiplied this number by 1/10, represented in 24 bit fixed point precision
+           ■ The battery had been online for 100 hours - it’s imprecision was at about 0.34 seconds
+           ■ A Scud missile travels at about 1600-1800 meters per second
+     ○   The situation was made worse by partial numerical improvements - always roll out full updates
+●   More: https://www.iro.umontreal.ca/~mignotte/IFT2425/Disasters.html
+Formalism
+Formalism
+●   The set of floating point numbers is the finite set
+●   Rounding is denoted as
+●   The maximum of the rounding error is the unit roundoff, often denoted by u
+Floating point model
+Floating point model
+Floating point model - example
+Higham compression
+Floating point model - example cont’d
+Floating point model - example cont’d
+Useful lemmas
+The Four Lerps
+The Four Lerps
+The Four Lerps
+The Four Lerps
+The Four Lerps
+

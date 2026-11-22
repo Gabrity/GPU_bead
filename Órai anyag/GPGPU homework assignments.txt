@@ -1,0 +1,1535 @@
+=== 1. oldal ===
+GPU homework assignments                                                                          cv.inf.elte.hu
+GPGPU homework assignments
+
+Choose    one   or  two  tasks   and  solve   them   to  complete    the  course. Partial   solutions   are also
+acceptable    (e.g., complete    one   up  to 45%    and   a different  one to 50%      and  you   get  95%). In
+addition, points earned during practice contribute to the grading as percentages.
+                               %       [0-50]   (50,60]   (60,70]   (70,80]   (80,∞)
+                            Grade        1         2         3         4         5
+
+Joint work and plagiarism
+
+Multiple students may work jointly for solving a harder task (>= 70%): you’ll have to decide how
+you’ll split points & GIT repo. should show joint work! Any kind of plagiarism is rewarded by 0%!
+Minimum Acceptance Criteria
+
+    1.  Version     Control:   You   must    use  GIT   to  track  development      and  specific   optimization
+        efforts. The repository history must reflect iterative stages of development; submissions
+        containing only a single "final" commit (or very few bulk commits) will not be accepted.
+    2.  Technical     Documentation:         A  report   detailing   your   design   considerations     and   the
+        rationale behind your optimization choices.
+    3.  Performance       Analysis:     Comprehensive       documentation       of  testing  results,  including
+        performance plots (visualizations) demonstrating behavior across multiple test cases.
+Extra points (optional)
+
+    4.  Early-semester 5 minute presentation of parallel algorithmic and design plans (... 10%).
+    5.  Clean, well-commented code (+2%).
+    6.  Using     shared     memory,       work    groups,      and    synchronization        properly    (+3%).
+        Comparative performance-evaluation to an alternate / naive approach is a minimum.
+    7.  Detailed    documentation       (+2%),    that  may   include    usage   of  shared   memory     &  work
+        groups, memory usage efficiency, cache-friendliness, changes to work-efficiency, the use
+        of parallel data structures, streaming, etc. For each major milestone:
+             ○   Document your design consideration, explain why you made that step.
+             ○   Comparative performance evaluation of your (incremental) change.
+    8.  Platform     independent       solution.  Your   solution   works   and   is  tested   &  evaluated    on
+        different platforms, that include various OSs (+3%) and compute devices (+2%).
+    9.  Using Multi-GPU or Multi-Device (OpenCL-only for the latter) computation (+5%).
+             ○   Comparative performance-evaluation to single-device computation,
+             ○   Documentation of the design of your multi-device approach.
+    10. Comparative      performance      evaluation     &  documentation      of  your   GPU     solution(s)   to
+        additional CPU implementation for the serial (single core) case (+1%), a multi-threaded
+        (multi-core) case (+1%), or a third-party CPU or GPU implementation (+1%).
+
+
+
+
+                                                        1
+=== 2. oldal ===
+GPU homework assignments                                                                                     cv.inf.elte.hu
+
+
+Problem Domain Categorization
+
+This   section    categorizes      assignments       by   their  primary     problem     domain,     such    as  Computer
+Vision. Note that some assignments may fit into multiple (sub)categories.
+Computer Vision and Image Processing
+    ●    Edge detection & localization on GPUs (1)
+    ●    GPU-powered circle detection (2)
+    ●    Stereo disparity estimation (5)
+    ●    Image denoising (7)
+    ●    Fast Graph Cuts (for segmentation) (9)
+    ●    Estimate Height Map from Normal Map (13)
+    ●    GPU-Accelerated Image Filtering with Shared Memory (21)
+Simulation and Physics
+    ●    N-Body simulation (3)
+    ●    Rigid-body simulation (4)
+    ●    Boid simulation (15)
+    ●    Cellular Automata Simulation (17)
+Graphics and Rendering
+    ●    Simulation of depth of field (6)
+    ●    Contour lines on the GPU (rendering isolines) (11)
+    ●    Raytrace the rainbow on the GPU (rendering) (12)
+    ●    Fractal Generation and Exploration (19)
+    ●    Real-time Ray Tracing on the GPU (20)
+Algorithms & Numerical Methods
+    ●    Custom floating-point type (8)
+    ●    Fast Convolution (for neural networks) (10)
+    ●    Random Number Generators (14)
+    ●    Path finding (18)
+    ●    Parallel Sorting Algorithms on the GPU (22)
+    ●    GPU-Accelerated Data Compression/Decompression (23)
+Optimisation and Robust Estimation
+    ●    GPU-Accelerated Optimisation Algorithms (24)
+    ●    GPU-Accelerated Robust Model Estimation (25)
+Signal Processing
+    ●    Real-Time Audio Processing with Effects (16)
+
+Additional domains to explore
+
+We encourage        you to    think creatively and propose your own assignment ideas within these or
+other   exciting   domains,      such    as  Data    Science     &  Machine      Learning,     Cryptography, Scientific
+Computing, and Optimisation, etc.
+
+
+
+
+
+                                                              2
+=== 3. oldal ===
+GPU homework assignments                                                                           cv.inf.elte.hu
+
+
+1.    Edge           detection              &     localization               on      GPUs            (up       to
+50%)
+
+An overview on line detection can be read at the following link:
+https://en.wikipedia.org/wiki/Line_detection
+
+The task is to implement the Canny edge detector:
+https://en.wikipedia.org/wiki/Canny_edge_detector
+
+
+Two implementations have to be prepared: one for CPU, another one for a GPU. They have to
+deal with images with arbitrary size. Accepted image formats are JPEG, PNG or GIF.
+
+Running    times   for the  platforms    have   to  be  compared on      five  different  images    with  different
+sizes, the results must be written in a document.
+
+GUI is not required, a command-line application is satisfactory.
+
+
+Substask:
+    ●   Gaussian filtering (10%)
+    ●   Calculation of edge magnitudes (5%) and directions (5%) for all pixels ,
+    ●   Non-maximal suppression (15%), including bi-linear interpolation (5%)
+    ●   (Double thresholding is not mandatory.)
+
+As  it is mentioned above,       a document has       to be written, including the      implementation details
+and test results. (10%)
+
+If you have questions, feel free to contact Levente Hajder at hajder@inf.elte.hu .
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                         3
+=== 4. oldal ===
+GPU homework assignments                                                                            cv.inf.elte.hu
+
+2. GPU-powered circle detection (50%+18%+20%)
+
+The task is to detect circles from the contour points of a sphere in an image. The implemented
+method has to be robust: it can deal with self-occlusion.
+
+We suggest to apply the RANSAC method: Random sample consensus - Wikipedia
+
+Example      images      and     datapoints     can     be    downloaded       from     the   link   as    follows:
+http://cgraf.inf.elte.hu/~hajder/GPGPU/circle/
+
+The method has to be tested on all the four images. Images are required only for visualization of
+the results. Contour points are given by text files: horizontal (X) and vertical (Y) coordinates are
+separated by spaces, and each point is in separate lines.
+
+The task:
+    ●   Read the points (by CPU) (5%)
+    ●   Select three random points, calculate the circle parameters (center, radius) (10%)
+    ●   Count how many points support the estimated circle. (5%)
+    ●   Parallelize    the  task:   each   RANSAC       iteration   should   be   dedicated    to  different  GPU
+        threads. (10%)
+
+The best model, containing the most supporting points, has to be selected (5%). This gives the
+final results.  This   circle has   to be drawn     to the original image      and   save it  in  arbitrary image
+format (png, gif, jpg,..) (5%)
+As  it is mentioned above,       a document has       to be written, including the       implementation details
+and test results. (10%)
+If you have questions, feel free to contact Levente Hajder at hajder@inf.elte.hu .
+
+Bonus task: Final LSq fit on the inliers
+
+    1.  Normalize your data: Translate the 2D cloud of inliers to their origin, and scale the cloud
+        to O(1) on Device-side, efficiently (+5%).
+    2.  Gather the coefficients of the 3x3 normal equations to the Least-Squares (LSq) algebraic
+        circle fitting problem using a version of parallel reduce on workgroups. (+10%)
+    3.  Solve the 3x3 problem either on the CPU (+1%) or Device-side (+3%).
+
+Bonus task: Non-linear geometric fit
+
+    ●   Use    the Levenberg-Marquardt method to refine the LSq fit by minimizing the geometric
+        residuals     (∣sqrt[(x−x    )2+(y−y  )2] −r∣) to   the    circle   fitting  problem     efficiently   (use
+                                   c         c
+        workgroups, etc where necessary). (+20%)
+
+
+                                                         4
+=== 5. oldal ===
+GPU homework assignments                                                                             cv.inf.elte.hu
+
+
+3. N-Body simulation with extras (up to 90%)
+
+!! The task can only be accepted with real-time graphical display (i.e., OGL/DX/Vulcan interop.).
+[0% without interoperation and memory sharing]*]
+
+Implement the space-partitioned version of            the N-body simulation seen in the practice, that is,
+divide the simulation space into smaller blocks within which the interaction (with particles of the
+nearest   neighbouring      blocks)   is exact    (20%),   but   distant  blocks    interact  only   through    their
+centres of mass. (20%)
+
+Enable the user to easily reset and re-parameterize the simulation
+    ●    changing the gravitational constant, (5%)
+    ●    setting the number of objects, (5%)
+    ●    changing the type of initial distribution of the objects (e.g., uniform randomization). (10%)
+
+Implement the N-body simulation in 3D (10%), where the user can navigate space and observe
+the simulation from different viewpoints (20%).
+
+(*) If you move memory from GPU to CPU (e.g., pos.) before drawing them, you lose all points.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+If you have questions, feel free to contact Ivan Eichhardt or Viktor Vad on Microsoft Teams.
+
+
+                                                         5
+=== 6. oldal ===
+GPU homework assignments                                                                            cv.inf.elte.hu
+
+
+4. Rigid-body simulation (up to 90%)
+
+                       ( This is an example to base your own idea on… )
+!! The task can only be accepted with real-time graphical display (i.e., OGL/DX/Vulkan interop.).
+
+Given   N dynamic bodies (circles         in 2D  or  spheres    in 3D)   with  given  radius, mass, and initial
+position and speed, confined in static an axis-aligned square (cube in 3D):
+    ●   Apply uniform gravitational force to all bodies (10%),
+    ●   Implement and handle body-to-body rigid collisions (20%),
+    ●   Implement and handle body-to-wall collisions (15%).
+
+Implement real-time user interaction:,
+    ●   Enable     the  user   to  easily   reset  (5%)    and   re-parameterize      the  simulation    (e.g., the
+        number of objects, radius, mass, distribution of objects) (10%).
+    ●   Enable the user to interact with the simulation (e.g., by moving the objects or changing
+        the direction/type of the gravitational force.) (10%)
+
+Implement the N-body simulation in 3D, where the user can                   navigate    space   and observe the
+simulation from different viewpoints (20%).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Source: https://www.youtube.com/watch?v=wf9nadEEmtw
+
+If you have questions, feel free to contact Ivan Eichhardt on Microsoft Teams.
+
+
+
+                                                         6
+=== 7. oldal ===
+GPU homework assignments                                                                           cv.inf.elte.hu
+
+
+5. Stereo disparity estimation (up to 80%)
+
+Given a pair of standard stereo images, estimate the disparity image [see lecture slides here].
+Use the images found here as the input.
+
+Tasks:
+    ●   The application should read and write image files. (10%)
+    ●   Implement a naive template-matching approach to determine disparity. (20%)
+    ●   In  addition,   implement     the   dynamic-programming         based    solution,   and   compare     the
+        results of the two. (30%)
+    ●   Compare the results of        your  implementation to the ground truth disparity images found
+        on the dataset’s website. Use the following metrics: MSE, SSIM, etc. (10%)
+    ●   Convert the obtained disparity image to 3D point cloud, then save it to the .XYZ or .PLY
+        file format and open it using MeshLab. (10%)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Further references:
+    ●   Computer Vision       and  Image    Understanding,     63:3,  pp.  542-567, May 1996 A Maximum
+        Likelihood Stereo Algorithm* Ingemar J. Cox, Suni
+
+If you have questions, feel free to contact Ivan Eichhardt on Microsoft Teams.
+
+
+
+
+
+                                                        7
+=== 8. oldal ===
+GPU homework assignments                                                                           cv.inf.elte.hu
+
+6. Simulation of the depth of field (up to 105%)
+
+A  summed-area        table  (SAT),    also  called   an
+integral image    is a 2D table generated from an
+input  image    in which    each   entry   in the  table
+stores  the  sum   of all  pixels  between    the  entry
+location  and   the  lower-left   corner   of the  input
+image.   The   power    of  the  summed-area       table
+comes    from   the   fact  that  it can   be   used   to
+perform   filters of different  widths at   every pixel
+in  the   image     in   constant    time    per   pixel.
+Generating       a   box-filtered     pixel   using    a
+summed-area        table   requires     sampling     the
+summed-area table at the four corners of a
+rectangular filter region, sur, sul, sll, slr.
+
+
+
+
+where    w  and    h  are the    width and height       of  the filter  kernel,   and sur is   the upper-right
+corner sample, sll is the lower-left corner sample, and so on. We can use this technique
+for  variable-width      filtering,  by   varying    the  locations     of  the  four   samples      we   use   to
+compute each filtered output pixel.
+
+Tasks:
+    ●   Input:
+             a.  Read a pair of input RGB and depth images (5%)
+             b.  OR   use real-time OpenGL/DX/Vulkan rendering of a scene with color and depth
+                 rendered to frame buffers directly (15%).
+    ●   Use the Scan parallel pattern to implement the Summed-Area Table. (20%)
+    ●   Use the variable-width box filter to compute the smoothed image. (20%)
+    ●   Save the output image to a file. (5%)
+    ●   Use real-time display (20%) and change the parameters for focus in real-time. (20%)
+        [0% without interoperation and memory sharing]]
+
+    ●   Readings:
+        https://www.youtube.com/watch?v=v5OE90eVIXo
+
+If you have questions, feel free to contact Ivan Eichhardt on Microsoft Teams.
+
+
+
+
+
+
+                                                        8
+=== 9. oldal ===
+GPU homework assignments                                                                         cv.inf.elte.hu
+
+
+7. Image denoising (up to 50+10+20=80%+)
+
+Use and implement a total variation image denoising method for the GPU. The input should be
+a noisy   image, processed      on the GPU      by  solving  the energy    minimization problem,       then  the
+output image should be displayed or saved to the disk. (50%)
+
+
+
+
+
+
+
+
+
+
+
+You can gain extra points for providing a simple GUI that allows the user to tune the parameters
+of the denoising algorithm, and immediately display the results! (+10%)
+
+Additional extra points can be achieved          by  also  submitting a comparative evaluation of yours
+and other denoising techniques, applied to various inputs. I.e., use metrics such as SSIM, NCC,
+MAD, etc. to compare results to ground truth images. (+20%)
+(Plus   points:    The    more    techniques      you    compare      or   the   better   quality   that   your
+figures,charts & diagrams are, you may be rewarded by further extra points.)
+
+If you have questions, feel free to contact Ivan Eichhardt on Microsoft Teams.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                       9
+=== 10. oldal ===
+GPU homework assignments                                                                              cv.inf.elte.hu
+
+
+8. Custom floating-point type (up to 70+20=90%)
+
+Implement a floating point type         with   arbitrary  number     of mantissa    and   exponent bits. That is,
+define operations      (addition,  subtraction, multiplication for finite and infinite numbers, like +/- inf
+and NaN) that handle can such a type, to perform high-precision computation.
+
+Zooming into the visualization of the Mandelbrot set just a bit reveals, that we can easily hit the
+limits of precision of 32bit or 64bit floating point numbers. Factors are so small, effectively zero,
+that they can’t be represented anymore - these enlarged pixels will only increase in size, without
+further revealing the beauty of infinite self-similarity of the fractal.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Tasks:
+    ●    Implement the custom bit-width floating point type. (30%)
+    ●    Apply the type to navigate and zoom further into the Mandelbrot set. (20%)
+    ●    Apply it to a different problem of your choice. (+20%)
+    ●    Earn extra points by making it more IEEE-like (division, roundings, etc. E.g., as written in
+         the Handbook of Floating-Point Arithmetic). (20%)
+
+Note that the task cannot be accepted without a demonstration in OpenCL / CUDA environment.
+
+Readings:
+    ●    Gábor Valasek’s lectures.
+    ●    Muller et al. - Handbook of Floating-Point Arithmetic
+
+If you have questions, feel free to contact Ivan Eichhardt on Microsoft Teams.
+
+
+
+
+
+                                                          10
+=== 11. oldal ===
+GPU homework assignments                                                                           cv.inf.elte.hu
+
+
+9. Fast Graph Cuts on the GPU (up to 125%)
+
+Graph    cut  optimization    finds   the  global   minimum     to  a  specific   energy    (i.e., global  energy
+minimization),    if the energy can     be represented      by  the  so-called flow graph, thus solving the
+problem    through graph optimization to        find the max flow between         a source    and   a sink node.
+Some problems  in computer vision solvable using Graph cuts:
+
+
+
+
+
+
+
+
+
+
+
+     Stereo depth estimation                          Foreground-background segmentation
+There   are a  number     of graph cut algorithms,       such as   the Ford-Fulkerson (solved on a global
+scope   based    on   search   trees),  and   the  Goldberg-Tarjan      “push-relabel”    algorithm.   The   latter
+considers a single node of the graph at a time, thus works on a local scope interacting only with
+direct neighbors. This is inherently parallel and a perfect fit for a GPU implementation.
+
+Implement the Goldberg-Tarjan algorithm on regular graphs with 4-neighborhood (i.e., 2D grids,
+or   considering     4-connectivity      of   neighboring      pixels    in   an    image),    and     solve    the
+foreground-background segmentation problem.
+    ●   Naive CPU implementation. (10%)
+    ●   Naive GPU implementation. (30%) Compare runtime to the CPU implementation (5%).
+    ●   Apply the implementation(s) to foreground-background image segmentation. (20%)
+    ●   Apply your implementation to a different problem of your choice. (+20%)
+    ●   Extra    points   for  demonstrated      improvements       over    the  naive   GPU     implementation
+        (runtime comparison, GIT-documented changes to the codebase). (30%)
+        (Tips: improve relabel through “wave”-push operations, compress residual edges using a
+        bit-vector,   periodic   global   relabeling,   use   workgroups      for  tile-based   push-relabel    by
+        splitting the graph to e.g. 32×32 tiles, exact global relabeling, etc.)
+    ●   Compare runtime to the Boykov-Kolmogorov algorithm (e.g. the maxflow library). (10%)
+Note that the task cannot be accepted without a working parallel implementation.
+Readings:
+    ●   Timo Stich's presentation - Graph Cuts with CUDA (2009, GPU Technology Conference)
+    ●   "Fast Graph Cuts for Computer Vision" in GPU Computing Gems, Emerald Edition
+    ●   Wikipedia - Goldberg-Tarjan “push-relabel” algorithm
+    ●   A V. Goldberg and R. E. Tarjan - A New Approach to the Maximum-Flow Problem (1988)
+If you have questions, feel free to contact Ivan Eichhardt on Microsoft Teams.
+
+
+
+                                                        11
+=== 12. oldal ===
+GPU homework assignments                                                                            cv.inf.elte.hu
+
+
+10. Fast Convolution on GPUs (up to 40+20=60%)
+
+
+The goal is to optimize the convolution step of a neural network.
+
+The input data is a set of 2D images (w x h) that has a depth (d) (or number of channels), that is
+to be convolved with a set of filters (N_F) that has size (wf x hf) and a matching depth. During
+convolution, we sum over the depth, but keep the dimension of the set of filters, so the output is
+a set (N_F elements) of 2D images with width: ((w - wf + 1) x (h - hf + 1)).
+
+A reference CPU version is provided, the code only has to work for the specific sizes provided in
+the       reference        implementation           and        the       reference        input/output         files:
+http://u235axe.web.elte.hu/GPUCourse/Convolution/
+
+In      the        GPU         implementation,           use        the       fast       Winograd          method
+(https://arxiv.org/pdf/1509.09308.pdf),        utilize  shared    memory     and   textures    to accelerate     the
+computation     as much    as   possible.   Always check that the computation is valid on the provided
+reference output file. The maximum element wise error should be smaller than 3e-5f.
+
+A single   correct  implementation gives 40%, a series of implementations showing how different
+optimizations improved (or not improved) performance with a small documentation of the ideas
+behind the different approaches can give an additional +20%.
+
+
+If you  have   questions,    feel  free  to  contact   Ivan  Eichhardt    on  Microsoft    Teams    or  Viktor Vad
+vad@inf.elte.hu.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                        12
+=== 13. oldal ===
+GPU homework assignments                                                                            cv.inf.elte.hu
+
+11. Contour lines on the GPU (up to 85%)
+
+
+Write  a program     that  computes     contour   lines (isolines)   of a height   map on the GPU. Use the
+marching     squares    algorithm     (https://en.wikipedia.org/wiki/Marching_squares),            utilize  shared
+memory and textures to accelerate the computation.
+
+Sample    elevation   maps    are   provided    as  text files  (space   separates individual      height values,
+double             endline            separates              lines           of           values)             here:
+http://u235axe.web.elte.hu/GPUCourse/Contours/. Elevations are in meters.
+Output the elevation map (color by elevation) and render the isolines over it as line segments for
+integer    multiples    of   50    meters.     Static    image     output    (as    png    or   jpeg,   see     eg.:
+https://github.com/nothings/stb/blob/master/stb_image_write.h) or OpenGL output on the screen
+is required.
+
+Grading:
+    ●   Correct implementation of the marching squares algorithm (30%)
+    ●   Display of the elevation map and isolines as image (+10%)
+    ●   Display of the elevation map and isolines with OpenGL on the screen (+15%)
+
+As an additional task, compute closed and open bezier curves to smooth the line segments, and
+render them. This requires the solution of a band diagonal problem. Solution via a CUDA library
+gives +5%, but a hand written parallel solver gives +15%. Proper rendering of the bezier curves
+(i.e. not just approximating them with denser line segments, but properly rasterizing them) gives
++10%.
+
+Resources for computing Bezier curves:
+https://www.codeproject.com/Articles/31859/Draw-a-Smooth-Curve-through-a-Set-of-2D-Points-
+wit
+https://www.codeproject.com/Articles/33776/Draw-Closed-Smooth-Curve-with-Bezier-Spline
+Curve rasterization:
+http://members.chello.at/easyfilter/bresenham.pdf
+
+If you  have   questions,    feel  free  to  contact   Ivan  Eichhardt    on  Microsoft   Teams     or Viktor Vad
+vad@inf.elte.hu
+
+
+                                                        13
+=== 14. oldal ===
+GPU homework assignments                                                                             cv.inf.elte.hu
+
+
+
+
+12. Raytrace the rainbow on the GPU (up to 80%)
+
+Rainbow is formed as rays coming from the sun refract and reflect on rain droplets. This can be
+easily  computed      in the   following   way:   assume     a  set  of parallel   rays  coming     from  a  certain
+direction  toward a    sphere    of water. Compute the intersection of each ray with the sphere, and
+compute     the  normal    of  the  sphere     at the   intersection   point.   Snell's  law   gives   the  relation
+between    the angle    of  incidence   and   the angle    of  refraction  for a  given index-of-refraction (n).
+However,    n  is dependent     on the wavelength of the         light so   different  colors  refract at different
+angles. Follow     the  light rays  until at most 4 intersections with the sphere or until they leave it,
+and set up a virtual screen plane on the opposite side with respect to the sun, and calculate the
+intersection of rays with the plane and record the number of rays at certain pixels including their
+wavelengths. Convolve         with the color matching functions to get RGB values, display the result
+on     the     virtual    screen       as    an      image      file    (as    png      or     jpeg,     see     eg.:
+https://github.com/nothings/stb/blob/master/stb_image_write.h) or with OpenGL on the screen.
+
+Try to follow multiple rays with each thread (vectorize) to improve performance.
+
+Grading:
+    ●    Correct implementation of the 3D geometry and refraction/reflection computation on the
+         GPU (30%)
+    ●    Correct implementation of the color conversion from wavelengths to RGB values on the
+         GPU (15%)
+    ●    Correct   implementation      of  a  vectorized version and performance comparison                 with  the
+         non-vectorized one (+5%)
+    ●    Color display as a static image file (+5%)
+    ●    Color display with OpenGL on the            screen,   with  interactively changeable viewing angle
+         (+10%) [0% without interoperation and memory sharing]]
+
+For  additional    +15%    compute     the   intensity   changes     properly   at  the  intersections    using   the
+Fresnel equations assuming unpolarized light.
+
+Description continues on the next page.
+
+
+
+
+                                                         14
+=== 15. oldal ===
+GPU homework assignments                                                                             cv.inf.elte.hu
+
+
+
+
+Recommended reading:
+https://en.wikipedia.org/wiki/Rainbow#Explanation
+https://en.wikipedia.org/wiki/Snell%27s_law
+https://en.wikipedia.org/wiki/Fresnel_equations
+Extra material:       You're Probably Wrong About Rainbows
+Numerical values:
+- Water refractive index:
+         https://en.wikipedia.org/wiki/Optical_properties_of_water_and_ice
+
+- Color matching functions:
+         http://u235axe.web.elte.hu/GPUCourse/Rainbow
+
+- Sample code to convert wavelength distributions to rgb values:
+         http://www.fourmilab.ch/documents/specrend/specrend.c
+
+If you  have    questions,    feel free  to  contact   Ivan   Eichhardt    on  Microsoft    Teams    or  Viktor Vad
+vad@inf.elte.hu
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                         15
+=== 16. oldal ===
+GPU homework assignments                                                                            cv.inf.elte.hu
+
+13. Estimate Height Map from Normal Map (.. 120%)
+
+In Computer Graphics        the micro    geometry is    rendered with the help        of Normal Map textures.
+The  pixels  of a normal map describe normal coordinates,               so  when    it is applied to a rendered
+surface, the   surface   normal    can be    perturbed by the fetched coordinates in Frenet-frame. It is
+wide-spread method, but has some drawbacks. Therefore nowadays Height Map representation
+is used.    It means     that   instead   of   normal    vectors,   the   texture   simply   contains    a  height
+perturbation    in  surface   normal    direction.   The   normal    map    can   be  computed      on-the-fly   by
+numerical derivation.
+
+In practice we can assume, that any normal map “comes” from derivation of a height map scalar
+                             ∂𝑥𝑆×∂𝑦𝑆
+field, in a way that 𝑁   =   |∂𝑆×∂ 𝑆| , where 𝑁 is the resulting normal vector, 𝑆 is the scalar
+                              𝑥    𝑦
+field. Also, 𝑁’s   coordinates are between -1 and 1. In order to store them in a texture pixel, the
+coordinates are linearly transformed to the span of 0..1.
+
+The   task   is, that  for  an   input  Normal     Map    the  application    should   estimate    the  assumed
+underlying scalar field. We do not need to handle and surface non-linearity, simply we can work
+in a rectangular parametric space (e.g. texture coordinates).
+
+Examples:
+ Input normal map (coordinates scaled to 0..1)             Height map from which the N.M. was created
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                        16
+=== 17. oldal ===
+GPU homework assignments                                                                                cv.inf.elte.hu
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+The solution:
+The   “traditional”  solution    is that  a  Poisson-system        is established,     where    the  unknown is      the
+scalar-field.  Solving    the system     (and potentially a      scale normalization)       gives   the  estimate    we
+want.
+
+
+Grading:
+    ●    Find out, how to establish the Poisson-system (20%)
+             ○    !! If you are stuck with this part, but you want this project, contact us! !!
+    ●    Solve the Poisson-system directly! You can implement both, or one of the following:
+             ○    If you use a GPU helper library (e.g. cuBLAS) (20%)
+             ○    If you create your own solver (e.g. conjugate gradient, with parallel matrix
+                  multiplication, parallel Jacobi, etc.) (30%)
+    ●    Solve the system by inverse-filtered FFT filtering. You can use helper GPU libraries (e.g.
+         cuFFT) (40%)
+             ○    The original paper (only Chapter III. is relevant!!):
+                  https://webdocs.cs.ualberta.ca/~vis/courses/CompVis/readings/photometric/Fran
+                  kotIntegrpami88.pdf
+             ○    MATLAB code for the above:
+                  https://github.com/dhr/matlab-tools/blob/master/ptgf/frankotChellappa.m
+    ●    Compare the results (10%)
+
+If you  have    questions,    feel  free   to contact    Ivan   Eichhardt    on  Microsoft    Teams     or Viktor Vad
+vad@inf.elte.hu !
+
+
+
+
+                                                           17
+=== 18. oldal ===
+GPU homework assignments                                                                        cv.inf.elte.hu
+
+14. A random GPU assignment (100+10%)
+
+The   goal  of  this assignment     is to  implement    and   analyze   different  pseudo-random       number
+generators    (RNGs)     on   a  GPU,     comparing     their  statistical  properties    and   performance.
+Additionally,  you  will optimize RNGs      using parallelization techniques       such  as workgroups and
+local memory.
+
+1. Implement Multiple Random Number Generators (25 points)
+
+    ●   Implement at least two (RNGs) on the GPU. Ensure the RNGs generate numbers in
+        parallel across multiple threads. 15 points. Examples include:
+            ○    Linear Congruential Generator (LCG)
+            ○    Xorshift Generator
+            ○    Mersenne Twister (optional for bonus points)
+    ●   Compare the randomness distributions qualitatively (e.g., histogram plots). 10 points
+
+2. Parallelized Random Number Generation (15 points)
+
+    ●   Generate large batches of random numbers in parallel using GPU threads.
+    ●   Ensure each thread has an independent RNG instance or maintains proper state
+        handling to avoid correlations.
+
+Points Breakdown:
+
+    ●   Properly launching kernels with parallelized execution: 10 points
+    ●   Handling separate RNG states per thread to ensure statistical independence: 5 points
+
+3. Statistical Testing of Randomness (15 points)
+
+    ●   Apply statistical tests to evaluate the randomness quality, such as:
+            ○    Chi-square test
+            ○    Kolmogorov-Smirnov test
+            ○    Autocorrelation analysis
+    ●   Compare GPU-generated numbers with a standard CPU-based RNG (e.g.,
+        std::mt19937 in C++ or random in Python).
+
+Points Breakdown:
+
+    ●   Implementing at least one randomness test: 10 points
+    ●   Comparing GPU-generated results with a CPU-generated baseline: 5 points
+
+4. Performance Benchmarking (15 points)
+
+
+
+
+                                                      18
+=== 19. oldal ===
+GPU homework assignments                                                                           cv.inf.elte.hu
+
+
+
+    ●   Measure execution time and memory usage for GPU vs. CPU implementations.
+    ●   Compare speedup achieved using the GPU.
+    ●   Discuss performance trade-offs and bottlenecks.
+
+
+
+Parallelization Optimization (30 points total)
+
+5. Efficient Parallelization with Local Memory and Workgroups (30 points)
+
+    ●   Optimize RNG implementation using local memory to store state information.
+    ●   Use workgroups to generate and process numbers collaboratively.
+    ●   Minimize global memory accesses by leveraging shared memory for intermediate
+        computations.
+    ●   Apply efficient memory coalescing to improve performance.
+
+Points Breakdown:
+
+    ●   Using local memory to reduce global memory overhead: 10 points
+    ●   Implementing workgroup-based collaboration for efficient execution: 10 points
+    ●   Demonstrating a measurable performance improvement through profiling: 10 points
+
+
+
+Bonus Challenge (+10 points)
+
+    ●   Implement a Monte Carlo simulation (e.g., Pi estimation, physics-based problem) using
+        the generated RNGs.
+    ●   Use workgroups to parallelize the simulation efficiently.
+
+
+
+Submission Requirements
+
+    ●   Source code with comments and explanations.
+    ●   A short report (2-3 pages) describing the implementation, performance results, and
+        statistical analysis.
+    ●   Plots or visualizations demonstrating randomness distribution and performance trends.
+
+
+
+
+
+
+
+
+                                                        19
+=== 20. oldal ===
+GPU homework assignments                                                                            cv.inf.elte.hu
+
+15. Boid simulation with extras (up to 120%)
+
+!! The task can only be accepted with real-time graphical display (i.e., OGL/DX/Vulcan interop.).
+[0% without interoperation and memory sharing]]
+
+Implement a 2D boid simulation based on the Wikipedia description. (20%)
+
+Enable the user to easily reset and re-parameterize the simulation, setting
+    -   the number of boids (15%)
+    -   the FOV of boids (5%)
+    -   the max perception distance (5%)
+    -   the weights of boid rules: (5%)
+             -   separation
+             -   alignment
+             -   cohesion
+    -   the type of initial distribution of boids (e.g., uniform randomization) (10%).
+
+Add obstacles that are avoided by boids (15%).
+
+For greater performance, when calculating the direction of boids, divide space into blocks and
+for each boid only consider the blocks which fall within the perception distance. (25%).
+
+Implement the simulation in 3D, where the user can navigate space and observe the simulation
+from different viewpoints. (20%)
+
+
+If you move memory from GPU to CPU before drawing, you lose 40%.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                        20
+=== 21. oldal ===
+GPU homework assignments                                                                          cv.inf.elte.hu
+
+16. Real-Time Audio Processing with Effects (70%+)
+
+This assignment focuses on implementing real-time audio processing with various effects on the
+GPU.   You will   need   to handle audio     data  transfer between the CPU and           GPU, apply parallel
+processing kernels for effects, and ensure real-time playback.
+
+Core (up to 70%):
+
+Implement basic      audio filters  like a simple   delay   or reverb   on a GPU. The focus would be on
+getting  sound   data   to  and  from   the  GPU,    applying   a  kernel that modifies     each sample, and
+playing  it back   in  real-time.   This  could   involve  reading    audio   files, processing    chunks,   and
+playing them.
+    ●   Implementing audio input/output and playback: (20%)
+    ●   Transferring audio data to and from the GPU: (20%)
+    ●   Implementing a basic delay effect on the GPU: (15%)
+    ●   Implementing a basic reverb effect on the GPU: (15%)
+
+Intermediate:
+
+Introduce   more   complex     effects,  such   as  a chorus,    flanger,  or simple   distortion.  This   would
+involve understanding more about digital signal processing (DSP) and potentially using shared
+memory    for more    efficient processing of neighboring samples. You could also explore different
+convolution methods for reverb.
+    ●   Implementing a chorus effect: (+10%)
+    ●   Implementing a flanger effect: (+10%)
+    ●   Implementing a distortion effect: (+10%)
+    ●   Utilizing shared memory for improved performance: (+10%)
+
+Advanced:
+
+Implement    spectral   audio   processing,    perhaps    using   a Fast   Fourier   Transform    (FFT)   on the
+GPU    to  apply   frequency-domain       effects   like equalization    or  vocoding.    This   would   require
+handling   complex    numbers     on  the  GPU    and   managing     larger  data   structures.   An  additional
+challenge could be real-time input from a microphone and output to speakers.
+    ●   Implementing FFT on the GPU: (+15%)
+    ●   Applying a frequency-domain effect (e.g., equalization or vocoding) using FFT: (+15%)
+    ●   Handling real-time audio input from a microphone and output to speakers: (+20%)
+
+There and Back Again: The Practicality of GPU Accelerated Digital Audio
+TorchFX: A modern approach to Audio DSP with PyTorch and GPU acceleration
+
+
+
+
+
+                                                       21
+=== 22. oldal ===
+GPU homework assignments                                                                           cv.inf.elte.hu
+
+
+17. Cellular Automata Simulation (70%+)
+
+This assignment focuses on implementing and simulating cellular automata on the GPU, with an
+emphasis on real-time visualization and exploring different rule sets and dimensions.
+
+Core (up to 70%):
+
+Implement    Conway's     Game of Life on the GPU.          The main challenge here         is parallelizing   the
+update rule for each cell based on its neighbors. Real-time visualization would be key.
+    ●   Implementing the Game of Life update rule on the GPU: (30%)
+    ●   Parallelizing cell updates based on neighbors: (20%)
+    ●   Real-time visualization      of the simulation: (20%) [0% without interoperation and memory
+        sharing]]
+
+Intermediate:
+
+Expand    to  other  2D   cellular automata with more        complex rules     or more    states  per cell (e.g.,
+Wireworld,    Turmites).   Students    could   also  explore   adding   different  neighborhood      types (e.g.,
+hexagonal, larger square neighborhoods) or boundary conditions.
+    ●   Implementing      another   2D   cellular  automaton     (e.g.,  Wireworld    or  Turmites)   with  more
+        complex rules/states: (+20%)
+    ●   Exploring and implementing different neighborhood types (e.g., hexagonal, larger square
+        neighborhoods) or boundary conditions: (+10%)
+
+Advanced:
+
+Implement 3D cellular automata or explore rule sets that mimic natural phenomena like fire, fluid
+dynamics,    or  L-systems     for plant  growth.    The   interaction  could   involve   users   drawing    initial
+patterns   or  dynamically     changing     rules.  This   would   delve    into optimizing    memory     access
+patterns for 3D grids and potentially incorporating advanced rendering techniques.
+    ●   Implementing a 3D cellular automaton: (+20%)
+    ●   Exploring    and   implementing      rule  sets  that  mimic   natural   phenomena      (e.g.,  fire, fluid
+        dynamics, L-systems): (+10%)
+    ●   Implementing user interaction for drawing initial patterns or dynamically changing rules:
+        (+10%)
+    ●   Optimizing     memory      access     patterns   for   3D   grids   and/or   incorporating     advanced
+        rendering techniques: (+10%)
+
+Conway's Game of Life - Wikipedia
+WebGPU Samples - Conway's Game of Life
+
+
+
+
+                                                        22
+=== 23. oldal ===
+GPU homework assignments                                                                            cv.inf.elte.hu
+
+
+18. Path finding in a Maze (70%+)
+
+This assignment focuses on implementing parallel pathfinding algorithms on the GPU for mazes
+or grid-based environments, including visualization and exploration of advanced scenarios.
+
+Core (up to 70%):
+
+Implement     a parallel   breadth-first  search    (BFS)   or  Dijkstra's  algorithm    on a GPU to find the
+shortest   path  in  a simple    2D  grid/maze. The      challenge    is handling the    wave-front    expansion
+efficiently on the GPU. Visualization of the path would be required.
+    ●   Implementing parallel BFS or Dijkstra's algorithm on the GPU: (30%)
+    ●   Efficiently handling wave-front expansion on the GPU: (20%)
+    ●   Visualization of the found path in real-time: (20%)
+        [0% without interoperation and memory sharing]]
+
+Intermediate:
+
+Tackle more advanced pathfinding algorithms like A* search or explore parallel maze generation
+algorithms (e.g., Kruskal's or Prim's algorithm for minimum spanning trees, adapted for mazes).
+This  would    involve   managing     open    and   closed   lists efficiently  on   the  GPU    and   potentially
+dealing with irregular graph structures.
+    ●   Implementing A* search on the GPU: (+20%)
+    ●   Implementing a parallel maze generation algorithm (e.g., Kruskal's or Prim's): (+10%)
+
+Advanced:
+
+Implement       pathfinding     in   dynamic       environments       where      obstacles      can    move      or
+appear/disappear,      requiring   re-computation.      Another    advanced      option   could   be  multi-agent
+pathfinding,   where multiple     entities need to    find paths    without colliding with each      other, using
+techniques like flow fields or local collision avoidance on the GPU.
+    ●   Implementing pathfinding in a dynamic environment with re-computation: (+20%)
+    ●   Implementing      multi-agent    pathfinding with collision     avoidance (e.g., flow fields or       local
+        collision avoidance): (+10%)
+    ●   Optimizing     data  structures    and  memory      access   for  dynamic or multi-agent scenarios:
+        (+10%)
+
+Accelerating Large Graph Algorithms on the GPU Using CUDA
+CUDA Solutions for the SSSP Problem
+A* search algorithm - Wikipedia
+
+
+
+
+
+                                                        23
+=== 24. oldal ===
+GPU homework assignments                                                                           cv.inf.elte.hu
+
+
+19. Fractal Generation and Exploration (up to 95%)
+
+The   goal   of  this  assignment      is to  implement     various    fractal  generation    algorithms     (e.g.,
+Mandelbrot    set,  Julia  set,  burning   ship  fractal)  on  the  GPU, allowing for      real-time interactive
+exploration,    zooming     and   rotation.   This   assignment      focuses     on   leveraging    the   parallel
+processing power of GPUs to efficiently compute and render complex fractal patterns, providing
+a smooth and interactive user experience.
+
+Tasks:
+    ●   Implement the Mandelbrot set generation algorithm on the GPU (CUDA: 15%, OpenCL:
+        0%).
+    ●   Implement at least      one   other fractal   generation algorithm (e.g.,      Julia set, Burning Ship
+        fractal) on the GPU (20%).
+    ●   Implement real-time visualization (OpenGL: 0%, Vulkan, DirectX, etc: 10%)
+        [0% without interoperation and memory sharing]]
+    ●   Enable real-time interactive zooming and panning within the fractal space (20%).
+    ●   Enable real-time rotation within the fractal space (5%).
+    ●   Implement a color mapping scheme for visualizing the fractals (10%).
+    ●   Explore performance optimizations for higher resolution or deeper zooms (10%).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                        24
+=== 25. oldal ===
+GPU homework assignments                                                                         cv.inf.elte.hu
+
+20. Real-time Ray Tracing on the GPU (up to 100%)
+
+Implement a real-time ray tracing renderer on the GPU. This assignment will involve simulating
+light paths to create photorealistic images of a 3D scene.
+
+Tasks:
+    ●   Implement basic ray generation and intersection tests with simple primitives (e.g.,
+        spheres, planes) on the GPU (25%).
+    ●   Implement a basic shading model (e.g., diffuse, specular) (20%).
+    ●   Enable real-time user interaction to change camera position, light sources, and scene
+        objects (20%). [0% without interoperation and memory sharing]]
+
+Advanced Tasks:
+    ●   Implement recursive ray tracing for reflections and refractions (20%).
+    ●   Explore acceleration structures (e.g., BVH, Octree) for faster ray-scene intersection
+        (15%).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                       25
+=== 26. oldal ===
+GPU homework assignments                                                                       cv.inf.elte.hu
+
+
+21. GPU-Accelerated Image Filtering with Shared
+Memory (up to 90%)
+
+Implement various image filtering operations (e.g., Gaussian blur, median filter, convolution) on
+the  GPU,    specifically  focusing   on   optimizing   performance     using   shared/local   memory     and
+workgroups.
+
+Tasks:
+    ●   Implement basic image loading and display functionalities (10%).
+    ●   Implement a 2D convolution filter (e.g., Gaussian blur) on the GPU without shared
+        memory (20%).
+    ●   Optimize the convolution filter using shared/local memory to reduce global memory
+        accesses and leverage workgroups for efficient data tiling (30%).
+    ●   Implement another image filter (e.g., median filter) on the GPU, also utilizing
+        shared/local memory and workgroups for performance (20%).
+    ●   Compare the performance and quality of the outputs (use various image metrics
+        between the output of the shared and non-shared counterparts) of the optimized GPU
+        implementations against their non-optimized counterparts and a CPU baseline (10%).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                      26
+=== 27. oldal ===
+GPU homework assignments                                                                         cv.inf.elte.hu
+
+22. Parallel Sorting Algorithms on the GPU (up to
+95%)
+
+Implement and optimize various parallel sorting algorithms (e.g., Bitonic Sort, Merge Sort, Radix
+Sort) on  the GPU,     with a  strong   emphasis on using shared/local memory and workgroups for
+efficient data handling and inter-thread communication.
+
+Tasks:
+    ●   Implement a basic parallel sorting algorithm (e.g., a simple parallel merge sort or
+        odd-even sort) on the GPU (25%).
+    ●   Optimize the chosen sorting algorithm by effectively using shared/local memory for
+        sub-array sorting or merging operations within workgroups (30%).
+    ●   Implement a more advanced parallel sorting algorithm (e.g., Bitonic Sort or Radix Sort)
+        that inherently benefits from workgroup-level parallelism and shared/local memory for
+        data movement and comparisons (30%).
+    ●   Analyze and document the performance benefits achieved by using shared/local
+        memory and workgroups, including comparisons with CPU sorting algorithms (10%).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                       27
+=== 28. oldal ===
+GPU homework assignments                                                                   cv.inf.elte.hu
+
+23. GPU-Accelerated Data
+Compression/Decompression (up to 90%)
+
+Implement    GPU-accelerated       algorithms   for  data   compression      or  decompression      (e.g.,
+Run-Length    Encoding,   Huffman    coding,  or a  simple  block-based compression scheme).         The
+assignment    will focus  on   leveraging   parallel processing    to speed   up  these   data-intensive
+operations.
+
+Tasks:
+    ●   Implement a chosen data compression algorithm on the GPU (30%).
+    ●   Utilize workgroups and shared/local memory to efficiently process data blocks or
+        segments in parallel during compression (25%).
+    ●   Implement the corresponding decompression algorithm on the GPU (25%).
+    ●   Compare the performance of the GPU compression/decompression with CPU-based
+        methods and analyze compression ratios (10%).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                   28
+=== 29. oldal ===
+GPU homework assignments                                                                          cv.inf.elte.hu
+
+24. GPU-Accelerated Optimisation Algorithms (up to
+95%)
+
+Implement and optimize various optimisation algorithms (e.g., Gradient Descent, Simulated
+Annealing, Genetic Algorithms) on the GPU. The focus will be on leveraging parallel processing
+to accelerate the search for optimal solutions in various problem spaces.
+
+Tasks:
+    ●   Implement a chosen optimisation algorithm (e.g., a basic Gradient Descent for a simple
+        function) on the GPU (25%).
+    ●   Define a problem or objective function to be optimized (e.g., curve fitting, parameter
+        tuning for a simple model) (15%).
+    ●   Utilize workgroups and shared/local memory to efficiently parallelize the core
+        computations of the optimisation algorithm (e.g., parallel evaluation of objective function,
+        parallel updates of parameters) (30%).
+    ●   Implement a more advanced optimisation algorithm (e.g., Simulated Annealing or a
+        Genetic Algorithm) on the GPU, demonstrating its application to a more complex
+        problem (25%).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                       29
+=== 30. oldal ===
+GPU homework assignments                                                                          cv.inf.elte.hu
+
+25. GPU-Accelerated Robust Model Estimation (up
+to 120%)
+
+
+Implement     and   optimize    a  more    advanced     RANSAC-family        algorithm    (e.g., PROSAC,       or
+LO-RANSAC)        on   the   GPU     for  robust   model    estimation    in  computer     vision   tasks.   The
+assignment     will focus   on   efficiently  parallelizing   the  sampling,    hypothesis    generation,    and
+verification  steps,   leveraging     GPU    architecture    for  significant   speedup,     with  a   particular
+emphasis on advanced parallelization strategies for local optimization within LO-RANSAC.
+
+Tasks:
+    ●   Implement a basic RANSAC algorithm on the GPU for a fundamental problem (e.g., line
+        fitting, homography estimation, or fundamental matrix estimation, etc.) (20%).
+    ●   Implement an advanced RANSAC-family algorithm (e.g., PROSAC for speedup with
+        ordered data, or LO-RANSAC for local optimization) on the GPU (30%).
+    ●   Utilize workgroups and shared/local memory to optimize the core steps of the chosen
+        advanced RANSAC algorithm, such as parallel sampling, inlier counting, and model
+        refinement (30%).
+    ●   Evaluate the performance of your GPU implementation against a CPU baseline and the
+        basic RANSAC on the GPU, analyzing speedup and robustness on various noisy
+        datasets (20%).
+
+Advanced Tasks:
+    ●   Advanced Parallelization of Local Optimization (LO-RANSAC specific):
+             ○   Implement a parallel strategy for the local optimization step, where multiple
+                 candidate models are refined concurrently on the GPU. This could involve
+                 assigning different refinement tasks to different workgroups or threads (10%).
+             ○   Explore and implement techniques to efficiently manage and update the set of
+                 best models during parallel local optimization, potentially using atomic operations
+                 or reduction patterns (10%).
+             ○   Analyze the impact of different parallel local optimization strategies on both
+                 performance and the quality of the estimated model (10%).
+
+Random sample consensus - Wikipedia
+Matching with PROSAC – Progressive Sample Consensus
+Fixing the Locally Optimized RANSAC
+
+
+
+
+
+
+
+
+
+                                                       30

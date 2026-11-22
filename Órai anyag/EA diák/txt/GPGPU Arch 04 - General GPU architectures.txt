@@ -1,0 +1,108 @@
+GPGPU - architectures
+                     04
+
+     Gábor Valasek (valasek@inf.elte.hu)
+CPU   Memory
+        a
+
+
+
+
+CPU   Memory
+                a
+
+
+
+
+CPU   Cache   Memory
+Resources
+●   Figures from:
+     ○   http://www.cs.cmu.edu/afs/cs.cmu.edu/academic/class/15869-f11/www/lectures/02_pipeline.p
+         df
+     ○   http://s08.idav.ucdavis.edu/fatahalian-gpu-architecture.pdf
+     ○   http://www.cs.cmu.edu/afs/cs.cmu.edu/academic/class/15869-f11/www/lectures/07_gpucore.p
+         df
+GPU origins
+●   Initially, GPU-s were only used for graphics, to speed up the execution of the
+    so called graphics pipeline
+●   In the beginning, not even the entire computation was placed on the GPU die:
+    only rasterization onwards was hardware accelerated (3dfx Voodoo cards),
+    prior stages (transformations, etc.) had to be carried out by the CPU
+●   Many stages of the graphics pipeline can be formulated such that we carry
+    out the same operation on multiple different data => SIMD processing
+●   GPU-s were shaped to accommodate such needs
+●   It took several years and GPU generations for general purpose computations
+    to be first class citizens on the GPU
+GPU evolution
+●   The first generations of GPU-s had special processing units for the various
+    stages of the graphics pipeline
+●   These were different compute units with different sets of instructions
+●   Then the compute units became unified (first on ATI (now acquired by AMD)
+    then on NVIDIA) => no more separate vertex and pixel shader units, only
+    ‘compute units’ (CUDA cores on NVIDIA)
+From CPU to GPU core
+In a birds eye view, starting from a CPU core:
+
+●   Simplify its construct and use many copies of it
+●   Share the command streams between cores
+●   Interleave more threads onto a single core
+●   (and undo as many of the simplifications, as we can)
+Intel Westmere
+Intel Westmere
+Execution context
+●   A set of fast registers that are used to store the state (private variables and
+    registers) of a thread
+●   2 execution contexts = Intel HyperThreading
+GPU core step 1: simplify
+●   Get rid of everything whose sole purpose is to increase the execution speed
+    of a single thread
+●   There goes all the cache and fancy branch prediction/etc.
+●   We freed over 50% of dye space though
+GPU core step 1: simplify
+GPU core step 1: simplify
+...and make many copies!
+GPU core step 1: simplify
+...and make many copies!
+GPU core step 2: SIMD processing
+●   The graphics pipeline is dominated by data parallel processing: we have to
+    carry out the same program (e.g. transformation or shading) on many different
+    items
+●   Share the code between multiple ALUs!
+GPU core step 2: SIMD processing
+GPU core step 2: SIMD processing
+GPU core step 2: SIMD processing
+16 pieces of 8-wide command streams = 128 operations in parallel
+GPU core step 2: SIMD processing
+GPU core step 2: SIMD processing
+GPU core step 2: SIMD processing
+Design decision
+●   How to expose SIMD processing?
+●   Explicit vectorization: SSE, AVX, etc.
+●   Implicit vectorization: GPU programming
+Design decision: explicit or implicit vectorization?
+int a[N], b[N], c[N];
+
+...
+
+for (i = 0; i < N; i++)
+
+  c[i] = a[i] + b[i];
+Design decision: explicit (SSE)
+Design decision: explicit (SSE)
+
+                Violates strict aliasing!
+Design decision: implicit (OpenCL)
+SIMD problems: branching
+GPU core step 3: latency hiding
+●   Up until now, if we have to wait on something, we can’t do anything about
+    that, we have to stall
+●   To avoid this: assign multiple threads to a single unit so when a thread is
+    waiting on some pending operation we can continue processing with another
+GPU core step 3: latency hiding
+GPU core step 3: latency hiding
+GPU core step 3: latency hiding
+GPU core step 3: latency hiding
+Storing the execution context
+Many small contexts = maximal latency hiding
+A few, large contexts = low latency hiding
+

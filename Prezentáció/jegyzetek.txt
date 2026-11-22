@@ -1,0 +1,19 @@
+Gabrity Gábor vagyok és ez a GPU programozás beadandó tervem prezentációja, melynek címe: 11. Contour lines on the GPU​
+
+A feladat megfogalmazása:​
+
+Bemenet egy rács csúcsainak értékei, mely rácsnak minden csúcsán egy szintmagasság értékét jelöljük.​
+
+Kimenet egy kép formátum, melyen bizonyos szintek szerinti szintvonalak láthatóak. Több ilyen szintvonalat is be kell rajzolnunk. Illetve azt várjuk még el, hogy a kép pixelenként szinezve van az érték nagysága szerint.​
+
+Vegyük végig az algoritmus lépéseit. Első lépés az értékek tömbbe olvasása. Ez még nem párhuzamosítható​
+
+Második lépés hogy cellánként haladva, berajzoljuk a szakaszokat melyek az adott cellán mennek át. A cellákat 4 csúcs határolja. És kiszámolhatjuk, hogy mely csúcsok vannak a szint felett és alatt. Ez alapján 16 esetet különböztethetünk meg. Ezt látjuk ezen az ábrán nagy vonalakban. Ez a lépés cellánként jól párhuzamosítható. Itt érdekes feladat, hogy a végén a szakaszokat egy listába írjuk. Ugyanis el kell kerülnünk, hogy a listában felülírás történjen.​
+
+Ezután a szakaszokat rendezetlen struktúrában kapjuk meg, de mivel folytonos görbét akarunk erre elhelyezni, először is fel kell fűznünk a görbét. ​
+
+Ez lényegében azt jelenti, hogy meg kell határoznunk a szakaszok sorrendjét a görbén. Ezeket a szakaszokat összeillesztve már egy pontok listájaként tudjuk reprezentálni azt.​
+
+Ha ez megvan akkor tudunk görbét illeszteni ezekre a szakaszokra, vagyis igazából pontok listájára. Ennek a lényege, hogy a görbe áthaladjon a pontokon és közben sima maradjon. Ennek a lépésnek az eredménye, hogy a görbét matematikailag megkapjuk.​
+
+Raszterizálás: A feladat egyik része a görbe berajzolása a képen. A másik része pedig hogy minden pixelt a magasságnak megfelelő színűre fessünk interpolálással. Ez gpu-val jól párhuzamosítható feladat, minden pixel külön szálon fut, és csak a képre ír. Nem probléma ha véletlenül pixel felülíródik.​

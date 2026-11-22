@@ -1,0 +1,1145 @@
+Bevezetés a GPU-k programozásába
+
+            Berényi Dániel
+           2026 február 26.
+Motivation
+
+• Let’s compute 𝜋 in python and C++, and measure how much
+  time it takes.
+
+• We will use Monte-Carlo integration for it by generating
+  random (x, y) pairs on a square of edge length 2, and counting
+  the ratio of those that fall into the circle of radius 1 to all
+  points:
+
+
+                                𝑟
+                                =1
+Motivation
+
+• We try to be comparable and write the same simple code, use
+  the same random generators, etc:
+Motivation
+
+Results: Million Samples per second (larger is better):
+
+
+
+
+             Technology       Performance [million samples / sec]
+
+             Naïve python                               0.4
+             Smarter python                         370
+             Naïve C++                              770
+Motivation
+
+Results: Million Samples per second (larger is better):
+
+
+
+
+              Technology        Performance [million samples / sec]
+
+              Naïve python                                  0.4
+              Smarter python                            370
+              Naïve C++                                 770
+              OpenCL CPU                              6100
+              OpenCL IGP                             13420
+              OpenCL dGPU                            38450
+
+       Hardware:   CPU: Ryzen 7 6800HS,      IGP: Radeon 680M,        dGPU: Radeon 6800S
+Introduction: parallelism
+
+
+
+
+                            Sources: 1. , 2.
+In a dream…
+
+
+Let’s look at this Intel Pentium
+annotated die shot:
+(1993)
+
+
+
+
+Actual ALU units are < ~40%
+of the area
+
+
+
+
+                                   7
+In a dream…
+
+
+
+
+              8
+In a dream…
+
+
+
+
+              9
+In a dream…
+
+
+
+
+              10
+In a dream…
+
+
+
+
+              11
+In a dream…
+
+
+
+
+              12
+In a dream…
+
+
+
+
+              13
+In a dream…
+
+
+
+
+              14
+In a dream…
+
+
+
+
+              15
+In a dream…
+
+
+
+
+              16
+In a dream…
+
+
+
+
+              17
+In a dream…
+
+
+
+
+              18
+In a dream…
+
+
+
+
+              19
+In a dream…
+
+
+
+
+              20
+In a dream…
+
+
+
+
+              21
+In a dream…
+
+
+
+
+              22
+In a dream…
+
+
+
+
+              23
+In a dream…
+
+
+
+
+              24
+In a dream…
+
+
+
+
+              25
+In a dream…
+
+
+
+
+              26
+In a dream…
+
+
+
+
+              27
+In a dream…
+
+
+
+
+              28
+In a dream…
+
+
+
+
+              29
+In a dream…
+
+
+
+
+                              Scheduling and   Complex instruction
+    A little bit of “cache”
+                                branching         support, etc.
+
+
+
+
+                                                                     30
+Then you wake up…
+
+
+
+
+                    31
+Then you wake up…
+
+Was it a dream,
+or was it a glimpse of the future?
+
+
+
+                                     32
+What were GPUs built for
+
+
+
+
+What is actually we are trying to solve here?
+
+
+
+
+                                                33
+What were GPUs built for
+
+
+
+
+Incremental image synthesis
+
+• Vertex transformation
+• Rasterization
+
+
+
+
+                              34
+ What were GPUs built for
+
+ Incremental image synthesis:
+ Vertex transformation
+                                              𝑎11                      𝑎12   𝑎13   𝑏1   𝑥       𝑥′
+                                              𝑎21                      𝑎22   𝑎23   𝑏2   𝑦       𝑦′
+                                                                                            =
+                                              𝑎31                      𝑎32   𝑎33   𝑏3   𝑧       𝑧′
+                                               𝑐1                      𝑐2    𝑐3    1    𝑤       𝑤′
+
+• Linear transformations acting on
+  3-dimensional Euclidean space
+  can be described by 3 × 3 matrices
+• Parallelism-preserving transformations are called affine transformations
+• “If X is the point set of an affine space, then every affine transformation on X
+  can be represented as the composition of a linear transformation on X and a
+                             composition       linear transformation
+
+
+
+
+  translation of X.”
+  translation
+
+
+
+
+• So we can describe projections and displacements if we use 4 × 4
+  matrices
+
+
+                                                                                                     35
+What were GPUs built for
+
+Incremental image synthesis: Vertex transformation
+
+
+
+
+  Model                      World                   Camera                     Screen
+coordinates               coordinates              coordinates                coordinates
+
+
+
+
+        Model transformation      View transformation            Projection
+
+Each transformation is described by a 4x4 matrix.
+
+
+                                                                                            36
+ What were GPUs built for
+
+ Incremental image synthesis: Rasterization
+
+
+
+
+       Assembly of primitives   Rasterization   Interpolation, texturing, coloring
+
+These steps can be implemented with fixed function and programmable
+hardware elements (shaders).
+
+
+
+                                                                                     37
+What were GPUs built for
+
+
+
+The rule of four:
+
+The GPUs are designed to work with 4-wide vectors
+(floats, ints) since:
+
+• Vertex transformations operate on 4-vectors
+• Colors are represented by 3+1 components:
+  red green blue and alpha (transparency)
+
+
+
+                                                    38
+What were GPUs built for
+
+
+
+
+In the early days, rendering was done by
+a fixed function pipeline similar to this:
+
+(discrete choice from a few pre-implemented algorithms)
+
+
+
+
+                                                          source
+
+
+
+                                                                   39
+What were GPUs built for
+
+
+
+
+Fixed function pipeline (abstract):
+
+Programmable shading started by
+making these two stages programmable
+
+
+
+                                      source
+
+
+
+                                               40
+What were GPUs built for
+
+
+
+
+Programmable pipeline:
+
+Then other stages started to be
+programmable too
+
+
+
+                                  source
+
+
+
+                                           41
+What were GPUs built for
+
+
+
+
+Programmable pipeline:
+
+Then other stages started to be
+programmable too
+
+
+
+                                  source
+
+
+
+                                           42
+• What were GPUs not built for? (originally)
+
+
+
+
+                                               43
+What were GPUs not built for? (originally)
+
+When the programmable shader stages appeared,
+people already started to abuse the graphics API to do
+science:
+
+• Large linear algebra computations
+• Fluid simulations
+• Lattice QCD
+•…
+
+
+
+
+                                                         44
+What were GPUs not built for? (originally)
+
+
+
+
+Originally, when programmable shading first appeared,
+there was literally separate hardware
+for vertex and fragment shaders.
+
+
+
+Then it all changed with the
+GeForce 8800 card in 2006
+
+
+
+
+                                                        45
+What were GPUs not built for? (originally)
+
+Then it all changed with the GeForce 8800 card in 2006
+
+
+
+
+     Same hardware units do both vs and fs computation!
+
+
+
+
+                                                          46
+What were GPUs not built for? (originally)
+
+
+
+
+• The same year NVIDIA introduced CUDA
+  for general purpose programming
+  (rise of the GPGPU concept)
+
+• Compute shaders first appeared in 2009
+  as an alternative pipeline in graphics
+
+• Compute APIs started to proliferate in the 2010s
+
+
+
+                                                     47
+What were GPUs not built for? (originally)
+
+Users wanted to:
+• browse photos
+• watch movies
+• make video calls
+• stream games online
+
+To make this efficient
+(low power consumption,
+no interruption to rendering tasks),
+image/video encoding/decoding got integrated
+via dedicated units into the GPUs
+
+
+                                               48
+What were GPUs not built for? (originally)
+
+
+
+
+• Raytracing
+
+
+
+
+                                             49
+What were GPUs not built for? (originally)
+
+                                Incremental image synthesis /
+                                rasterization is actually just a
+                                crude approximation of how
+                                light actually composes into a
+                                2D image in our eyes or a
+                                camera’s sensor
+
+                                It is crude, but fast / cheap
+
+                                Best choice for real-time
+                                graphics (games)
+
+            Some graphics problems are difficult to solve
+            (e.g. multiple colored transparent objects, shadows, etc).
+
+
+                                                                         50
+What were GPUs not built for? (originally)
+
+                       Ray tracing:
+                       physically (more) correct
+                       imaging
+                       • It follows the path of light
+                         rays between light sources
+                         and pixels
+
+
+                       • The rays sum up the colors
+                         from different surfaces
+
+
+                       • Mathematically, the Monte-
+                         Carlo integration of the
+                         render equation takes place:
+
+
+                                                        51
+What were GPUs not built for? (originally)
+
+Hardware accelerated raytracing support landed in
+GPUs in 2018. This is mostly accelerating ray-surface
+intersection.
+
+
+
+
+                                                        52
+What were GPUs not built for? (originally)
+
+• While not specifically a hardware feature,
+  2010s saw a rapid rise of Physically Based Rendering in
+  graphics
+
+This approach is centered on modelling the surface
+properties more in line with how actually light behaves
+
+
+
+
+                                                            53
+What were GPUs not built for? (originally)
+
+• Physically Based Rendering
+
+Some aspects:
+• Proper handling of reflection/refraction (Fresnel),
+• diffusion, translucency, transparency
+• Energy conversation respected
+• Easier parameterization
+• Improved consistency across rendering methods
+
+
+
+
+                                  Physically Based Rendering book (free)   54
+What were GPUs not built for? (originally)
+
+• Physically Based Rendering - Fresnel
+
+
+
+
+              See also      Physically Based Rendering book (free)   55
+What were GPUs not built for? (originally)
+
+
+
+
+• Computing hashes
+
+Turns out GPUs are good at this too...
+
+The crypto currency hype caused significant shortages
+in GPU hardware stocks in 2018 and 2020-2021
+
+
+
+
+                                                        56
+What were GPUs not built for? (originally)
+
+
+
+
+• Neural networks (mid 2010s)
+
+
+
+
+                                             57
+What were GPUs not built for? (originally)
+
+
+
+• Neural networks (mid 2010s)
+
+
+
+
+Turns out GPUs are good at
+massive volumes of linear algebra operations
+and convolutions
+
+
+The revolution of image processing was mostly driven
+by GPUs
+
+
+                                                       58
+What were GPUs not built for? (originally)
+
+
+• Neural networks (mid 2010s)
+
+It turned out, that you can do inference with reduced
+precision (most workloads are bw limited)
+
+Rise of ‘alternative’ floating point formats, like
+bfloat16
+
+
+
+
+                                                        59
+ What were GPUs not built for? (originally)
+
+• Neural networks (mid 2010s)
+
+Turns out you can do linalg ops much faster in
+reduced precision
+
+
+
+
+NVIDIA introduces
+Tensor Cores
+
+
+                                                 60
+What were GPUs not built for? (originally)
+
+• Deep Learning Super Sampling in real-time graphics
+  (2019)
+
+
+
+
+                                                       61
+What were GPUs not built for? (originally)
+
+
+
+
+•The AI revolution (2023-present)
+
+
+
+
+                                             62
+What were GPUs not built for? (originally)
+
+• The AI revolution (2023-present)
+• Large Language Models drive incentives
+
+
+
+
+                                             63
+Who makes GPUs?
+
+There are basically three major GPU chip development
+companies on the market:
+
+
+  GPUs for desktop,
+     server and       GPUs and CPUs for desktop and server
+  embedded systems      environments and more recently,
+                                embedded chips
+
+
+
+
+                                                             64
+AMD Navi 31
+
+
+
+
+ISA Docs
+
+
+
+
+              65
+AMD Navi 31
+
+
+
+
+              66
+AMD Navi 31
+
+
+
+
+              67
+NVIDIA AD102
+
+
+
+
+               68
+NVIDIA AD102
+
+
+
+
+               69
+NVIDIA AD102
+
+
+
+
+               70
+Intel DG2-128
+
+
+
+
+                71
+Who makes GPUs?
+
+
+However, there are others too:
+
+• Apple: always doing their own thing
+
+• ARM, Qualcomm, Imagination Technologies,
+  Samsung
+ Mostly mobile and embedded and other low power
+ and/or otherwise special applications
+
+
+
+                                                  72
+GPUs vs CPUs
+
+
+
+
+• How GPUs are different from CPUs?
+
+
+
+
+                                      73
+GPUs vs CPUs
+
+
+
+• By looking at the ratios, you could see that
+  GPUs have much less cache per number of
+  processing elements compared to CPUs
+
+• So, they need to wait a lot for data to arrive
+  from memory…
+
+ How is this going to work at all?
+
+
+                                                   74
+GPUs vs CPUs
+
+•Latency hiding
+
+
+
+
+ If we have enough work,
+ we can hide latency by switching over to another thread and make
+ progress
+                                                                    75
+GPUs vs CPUs
+
+• Cost of operations on the GPU (NVIDIA Ampere arch)
+
+
+
+
+• Compare to e.g. AMD Zen4:
+  • L1: 4-8 cycles
+  • L2: 14-17 cycles
+  • L3: ~50 cycles
+  • RAM: ~300 cycles
+
+                                                       76
+GPUs vs CPUs
+
+• Cost of operations on the GPU (NVIDIA Ampere arch)
+    Operation                   Cycles
+    Add / Mul / FMA / logical   2-4
+    Div                         66-426
+    Rcp (1/x)                   198-244
+    Sqrt                        190-340
+
+• Compare to AMD Zen4:
+   • Add/Mul/FMA: 1-4
+   • Div / rcp:   11-13
+   • Sqrt:        15-21
+
+                                                       77
+GPUs vs CPUs
+
+
+
+
+• How does this work?
+  All this is pretty much in contrast to CPUs!
+
+
+
+
+                                                 78
+GPUs vs CPUs
+
+
+CPU                              GPU
+
+• The scheduler is a software    • The scheduler is in hardware
+  run by the OS
+• Threads run                    • All threads run the same
+  random/unknown programs          program
+• Cores run threads              • Execution is tightly linked
+  completely independently         across groups of execution
+                                   units
+                                                Branching hurts more!
+
+• Relies on caches -> cache      • Much less reliance on cache ->
+  issues -> performance issues     almost free switches between
+                                   threads
+                                                                        79
+GPUs vs CPUs
+
+
+CPU                             GPU
+• Latency optimized hardware    • Throughput optimized hardware
+  (low throughput)                (very high latency)
+
+
+
+• This is closer to a general   • This is closer to a special
+  solution to execution           solution to execution
+
+• 10s of threads                • 1000s of threads
+                                  But an individual thread is “weaker”
+
+• arbitrary workloads           • optimized to execute the same
+                                  massively parallel program
+                                                                         80
+• How can we program GPUs?
+
+
+
+
+                             81
+What's what?
+
+                                              Our program
+
+                       Host language           API library
+                                              components
+
+
+                     Implementation    API Implementation Library
+     Application
+    Programming                                (.dll, .so )
+   Interface (API)
+                      Operating System       Device driver
+
+                                          Data bus (e.g. PCI-E)
+Green : hardware
+Blue   : software
+Orange : a large pdf document             Hardware (e.g. GPU)
+
+
+                                                                    82
+ GPU APIs
+
+The GPUs are accessed via an
+Application Programming Interface (API)
+There are basically two types of APIs:
+graphics and compute
+     Features of graphics APIs
+
+
+                                                         Features of
+                                                         computing APIs
+
+
+
+
+ This is largely because graphics uses lots of specialized features,
+ while compute is much more general
+
+                                                                          83
+GPU APIs
+
+
+
+                   Graphics APIs         Compute APIs
+
+
+                      OpenGL,          CUDA, OpenCL, HIP,
+ “High level”
+                 Direct3D (9-10-11)          SYCL
+
+
+
+                Vulkan, Direct3D 12,
+ “Low level”
+                  Metal, webGPU
+
+
+
+
+                                                            84
+The Khronos group
+
+The Khronos group is a non-profit organization for developing
+royalty-free standards
+
+It manages many of the key GPU standards and many others
+
+It has wide support base: hardware, software companies,
+universities, research centers and individuals are contributing
+
+Promoter Members:
+
+
+
+
+                                                                  85
+Open Graphics Library
+
+• The oldest existing graphics API from the 90s
+
+• Khronos standard for quite some time,
+  so it is open and anyone can implement it
+
+• Fossil C API, state machine operation
+  (doesn't even match OOP abstraction)
+• Newest hardware features are not supported
+
+• The device side language is
+  GLSL (OpenGL Shading language)
+                                   For the web, there is webGL
+                                                                 86
+DirectX (Direct3D)
+
+
+• Microsoft's leading 3Ds graphics API
+• Native technology on Windows
+  is one of the key leaders of game development
+• C++ COM (Common Object model)
+• The device language is
+  HLSL (High-level Shading language)
+
+• The intermediate representation is
+  DXIL (DirectX Intermediate language)
+
+
+                                                  87
+CUDA
+
+
+• Nvidia’s general purpose compute API
+• Since 2007
+• Two levels of access
+  • Driver API (C driver API)
+  • Runtime API: C++98 language extension, in which
+    special operators and decorators appear to
+    separate host and device side code
+
+• Closed technology, its capabilities are adapted
+  to the current NVIDIA hardware capabilities
+
+                                                      88
+Open Computing Language
+
+
+
+• Apple's initiative in response to the success of CUDA,
+  development was transferred to the Khronos group
+• Since 2009
+• Separate host and device side language
+  • C API for host code
+  • C-like language for device-side code
+    (static C++14 from OpenCL 2.1)
+• Open technology, anyone can participate in its
+  development and anyone can implement it
+
+
+
+                                                           89
+Open Computing Language
+
+• Released in 2020, version 3.0 is a reboot of the
+  technology
+  • They want to improve the technology's biggest problem,
+    accessibility, by making it easier to implement
+  • The 2.x versions demanded too much from an implementation
+     • In the end, every manufacturer found something to complain about
+        • Meaning: all of them had something they couldn’t/did not want to implement
+
+• OpenCL 3.0 reverts to the 1.2 requirements and
+  makes all new features optional, treated as
+  extensions (Source compatible with 1.2)
+• It is (also) available through translation layers
+  • OpenCLOn12 (DirectX blog , Collabora blog )
+  • clvk / clspv
+
+                                                                                       90
+Heterogeneous-Computing
+Interface for Portability (HIP)
+
+
+• AMD's answer to the massive success of CUDA
+  and the missed breakthrough of OpenCL
+• Since 2016
+• Multi-level access (full stack open)
+  • Driver API (C driver API)
+  • Runtime API: C++98 language extension in which special decorators
+    appear to separate host and device-side code (always device-side
+    compiler bleeding-edge Clang trunk)
+• Open technology, its capabilities are adapted to current CUDA
+  API and AMD hardware capabilities
+  • Crude copy of CUDA
+
+
+
+
+                                                                        91
+Heterogeneous-Computing
+Interface for Portability (HIP)
+
+What is HIP?
+
+
+
+
+                                  92
+SYCL
+
+• Higher-level Compute API compared to OpenCL
+  (Since 2014)
+• Aims at C++ compatibility
+  • The host and device-side code is separated cleanly through
+    the template library
+• Open Khronos standard, anyone can implement it
+• SYCL 1.2.1 strictly builds on OpenCL as a runtime
+  environment
+• SYCL 2020 and later also allows other runtime
+  environments and various backends (abstracts
+  OpenCL, CUDA, HIP)
+  • Intel’s DPC++ Implementation
+  • AdaptiveCpp (University of Heidelberg)
+  • triSYCL
+  • Intel LLVM
+
+                                                                 93
+Vulkan
+
+• A low-level graphics API that is available on most
+  platforms
+• Open, Khronos standard, available since 2014
+• It has one of the broadest industrial alliances behind
+  it
+• Its new flexible intermediate language (SPIR-V) has
+  already leaked into OpenCL (mandatory from 2.2)
+• For long it didn't have a separate device-side
+  language, it just loads a SPIR-V binary, and it can
+  come from anywhere
+  Recently Khronos adopted the Slang shading language
+• Prospective convergence with OpenCL
+
+                                                           94
+Metal
+
+
+
+
+• Apple's own low-level graphics API
+• This must be used on Apple platforms,
+  all other APIs are essentially no longer supported
+  there
+• Its device-side language is
+  Metal Shading Language
+  (similar to HLSL)
+
+
+
+
+                                                       95
+webGPU
+
+• WebGPU is a W3C standard for low-level graphics
+• Not just for web!
+
+• Javascript / C++ / rust /C API
+
+• Device side language is its own webGPU shading
+  language (WGSL)
+
+• Still developing, not yet finalized standard, mostly pushed by
+  Google motivated by AI compute workloads in browsers
+• Has the prospect to really run and be supported “everywhere”
+
+                                                                   96
+

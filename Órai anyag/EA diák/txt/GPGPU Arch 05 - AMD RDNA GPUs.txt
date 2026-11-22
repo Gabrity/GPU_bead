@@ -1,0 +1,2573 @@
+Low-level GPU ISA
+assembly on RDNA
+Gábor Valasek
+gabor.valasek@shapr3d.com / valasek@inf.elte.hu
+                            LAST UPDATED: FEBRUARY 2025
+Table of
+contents   AMD RDNA architecture
+
+
+
+
+           GPU ISA assembly
+
+
+
+
+           Case studies
+Table of
+contents   AMD RDNA architecture
+
+
+
+
+           GPU ISA assembly
+
+
+
+
+           Case studies
+GPU
+GPU
+                                        Data-parallel processor
+Memory controller   Command processor
+                                                (DPP)
+                                                        Data-parallel processor
+        Memory controller       Command processor
+                                                                (DPP)
+
+
+
+
+ “Has direct access to all RDNA device memory and
+the host-specified areas of system memory. To satisfy
+   read and write requests, the memory controller
+  performs the functions of a direct-memory access
+        (DMA) controller, including computing
+ memory-address offsets based on the format of the
+             requested data in memory”
+                                             Data-parallel processor
+Memory controller     Command processor
+                                                     (DPP)
+
+
+
+
+                “Reads commands that the host has written
+                 to memory-mapped RDNA registers in the
+                     system-memory address space.”
+                                          Data-parallel processor
+Memory controller   Command processor
+                                                  (DPP)
+
+
+
+
+                       “Sends hardware-generated interrupts to the
+                         host when the command is completed.”
+AMD RX 5700 XT
+Execution on the GPU
+ ●   GPUs batch threads and these batches and
+     their sets are the units of scheduling
+ ●   The batches are called wavefronts on AMD      Wavefront x32
+     (and warps on NVIDIA GPUs)
+ ●   A wavefront consists of 32 or 64 threads -
+     the number is the wave mode
+ ●   Wavefronts may be bundled into thread- or
+     workgroups (up to 32 wavefronts) that share   Wavefront x64
+     certain GPU resources and threads within
+     one group can communicate/sync cheaply
+Workgroup
+processor WGP
+
+
+                                                 Texture addresser
+     SIMD32 processor         SIMD32 processor     Texture data
+                                                                     L0$
+I$
+                        LDS
+K$                                               Texture addresser
+     SIMD32 processor         SIMD32 processor     Texture data
+                                                                     L0$
+Workgroup
+processor WGP               ●    Up to 20 wavefronts
+                              ●    Up to 32 operations per clock
+                              ●    Separate register tables
+
+
+
+
+                                                            Texture addresser
+     SIMD32 processor             SIMD32 processor            Texture data
+                                                                                L0$
+I$
+                        LDS
+K$                                                          Texture addresser
+     SIMD32 processor             SIMD32 processor            Texture data
+                                                                                L0$
+Workgroup
+processor WGP
+     ●   Shared by the 4 SIMD32 processors
+     ●   32 byte/SIMD32 I$ per clock (2-4 commands)
+     ●   I$ 32KB, 64 byte cacheline (16 floats)
+     ●   K$ 16KB, 64 byte cacheline with 16 byte/clock
+         bandwidth to SGPRs
+
+                                                                       Texture addresser
+         SIMD32 processor                           SIMD32 processor     Texture data
+                                                                                           L0$
+I$
+                                     LDS
+K$                                                                     Texture addresser
+         SIMD32 processor                           SIMD32 processor     Texture data
+                                                                                           L0$
+Workgroup
+processor WGP                ●   32 wide bus to each SIMD32
+                               ●   Bandwidth is 32x4 byte read/write per clock
+                               ●   128 byte cacheline
+
+
+
+
+                                                       Texture addresser
+     SIMD32 processor         SIMD32 processor           Texture data
+                                                                           L0$
+I$
+                        LDS
+K$                                                     Texture addresser
+     SIMD32 processor         SIMD32 processor           Texture data
+                                                                           L0$
+WGP caches - I$
+●   L0 instruction cache is shared between all 4 SIMD32s
+●   It is divided into 4 banks, each of which can supply 32 bytes of data 24 instructions)
+●   Each bank contains 128 cache lines
+●   An I$ cache line is 64 bytes
+●   The instructions are forwarded to the SIMD32 wavefront controllers, that have 20
+    instruction pointers
+WGP caches - K$
+●   More precisely, the constant scalar cache
+●   16 KB 4-way associative cache
+●   Shared by all 4 SIMD32s within the WGP
+●   Split into 2 banks
+●   Each bank contains 128 cache lines
+●   16 bytes per clock to the SGPR register file
+WGP caches - V$
+●   16KB 4-way associative, write-through LRU cache
+●   Two busses from the vector cache to the SIMD32s
+●   Each bus is capable of submitting 32 addresses
+●   Memory requests are coalesced (grouped together) based on which ones address the
+    same 128 bytes long cache line
+●   Response bus can deliver 128 bytes per cycle 4 bytes per wave in wave32 mode)
+●   RDNA specific: texture fetches go the same path as texture loads, providing smaller
+    latency and larger throughput 35% and 8x, respectively, in RDNA) as long as they are
+    not mixed with texture samples
+SIMD32                                        Wavefront 1
+                                              Wavefront 2
+processor
+                                                             x20
+                                              Wavefront 3
+                                              Wavefront 4
+
+
+                Arbitration & decode
+
+
+
+
+            Export
+               /                                      SALU
+    VMEM     Msg                       VALU             /
+               /                                      SMEM
+            Branch
+SIMD32                                        Wavefront 1
+                                              Wavefront 2
+processor
+                                                             x20
+                                              Wavefront 3
+                                              Wavefront 4
+
+
+                Arbitration & decode
+
+
+
+
+            Export
+               /                                      SALU
+    VMEM     Msg                       VALU             /
+               /                                      SMEM
+            Branch
+SIMD32                                        Wavefront 1
+                                              Wavefront 2
+processor
+                                                             x20
+                                              Wavefront 3
+                                              Wavefront 4
+
+
+                Arbitration & decode
+                                              Wavefront 3
+
+
+
+
+            Export
+               /                                      SALU
+    VMEM     Msg                       VALU             /
+               /                                      SMEM
+            Branch
+SIMD32                                           Wavefront 1
+                                                 Wavefront 2
+processor
+                                                                 x20
+                                                 Wavefront 3
+                                                 Wavefront 4
+
+
+                 Arbitration & decode
+                                                 Wavefront 3
+
+
+
+
+       x32        x32                     ~x32                  x1
+
+
+             Export
+                /                                        SALU
+    VMEM      Msg                       VALU               /
+                /                                        SMEM
+             Branch
+       Wavefront 3
+
+VALU
+                                                  Wavefront 3
+
+VALU
+                            a+b
+
+
+
+
+                x32                       x2-16
+
+
+
+
+         FP32                       FP64
+
+
+
+
+Integer, binary, and floating point operations (+FMA)
+                                                  Wavefront 3
+
+VALU
+                            a+b
+
+
+
+
+                x32                       x2-16
+
+
+
+
+         FP32                       FP64
+
+
+
+
+Integer, binary, and floating point operations (+FMA)
+                                                  Wavefront 3
+
+VALU
+                            a+b
+
+
+
+
+                x32                       x2-16
+
+
+
+
+         FP32                       FP64
+
+
+
+
+Integer, binary, and floating point operations (+FMA)
+                                                  Wavefront 3
+
+VALU
+                            a+b
+
+
+
+
+                x32                       x2-16
+
+
+
+
+         FP32                       FP64
+
+
+
+
+Integer, binary, and floating point operations (+FMA)
+                                                  Wavefront 3
+
+VALU
+                            a+b
+
+
+
+
+                x32                       x2-16
+
+
+
+
+         FP32                       FP64
+
+
+
+
+                                         …
+
+Integer, binary, and floating point operations (+FMA)
+                                                  Wavefront 3
+
+VALU
+                            a+b                                  sin(a)
+
+
+
+
+                x32                       x2-16                                   x8
+
+
+
+
+         FP32                       FP64                            Transcendental
+
+
+
+
+                                         …
+
+Integer, binary, and floating point operations (+FMA)           1/x, sqrt, sin/cos, etc.
+Table of
+contents   AMD RDNA architecture
+
+
+
+
+           GPU ISA assembly
+
+
+
+
+           Case studies
+Variables
+ In relation to the wavefront as a unit, there are two types of thread variables:
+  ● Scalar (wavefront invariant, same for all threads) ⇒ up to 108 per wavefront
+  ● Vector (local, unique to each thread) ⇒ up to 256 per thread
+
+ These are physically different pieces of memory. Each SIMD32 has
+  ● a 128204 byte SGPR and
+  ● a 1024324 byte VGPR
+ register table.
+SIMD32                                                            Wavefront 1
+                                                                  Wavefront 2
+processor
+                                                                                  x20
+                                                                  Wavefront 3
+                                                                  Wavefront 4
+
+SGPR register table (10KB)
+                                  Arbitration & decode
+VGPR register table (128KB)                                       Wavefront 3
+
+
+
+
+                x32                x32                     ~x32                  x1
+
+
+                              Export
+                                 /                                        SALU
+           VMEM                Msg                       VALU               /
+                                 /                                        SMEM
+                              Branch
+VGPR
+
+                            ...
+
+
+                1024 VGPR
+
+
+
+       SIMD32
+VGPR
+
+                                       ...
+                VGPRs of wavefront 0
+
+
+
+
+       SIMD32
+VGPR
+
+                                ...
+
+
+                wavefront0.v0
+
+
+
+
+       SIMD32
+VGPR
+
+                            ...
+
+
+                wavefront0.v1
+
+
+
+
+       SIMD32
+VGPR
+
+                                  ...
+
+
+
+
+       SIMD32
+
+
+                Physically, each VGPR is 32 pieces of 4 byte
+                registers, i.e., 4 bytes per thread (in wave32 mode)
+VGPR
+
+                                                 ...
+
+
+
+
+       SIMD32
+
+
+                               Physically, each VGPR is 32 pieces of 4 byte
+                               registers, i.e., 4 bytes per thread (in wave32 mode)
+                wavefrontX.wave[0].v5
+VGPR
+
+                                                 ...
+
+
+
+
+       SIMD32
+
+
+                               Physically, each VGPR is 32 pieces of 4 byte
+                               registers, i.e., 4 bytes per thread (in wave32 mode)
+                wavefrontX.wave[0].v5
+                                                                     wavefrontX.wave[31].v5
+VGPR
+
+                                                            ...
+
+
+
+
+         SIMD32
+
+
+
+
+ The allocation granularity of physical VGPRs is 8. It means that the logical
+ allocation granularity is
+   ● wave32: 8
+   ● wave64: 4
+VGPR
+  ●   VGPRs are split into 4 banks
+  ●   Different registers are mapped to different banks via some
+      (undisclosed) heuristics, like v[k] to bank k%4, etc.
+  ●   Each bank can be accessed only once per cycle (1 read, 1 write)
+  ●   Subsequent requests will force serialization
+  ●   There are some caches that may be able to optimize this away
+  ●   And this is true to everything that is split into banks
+Wave32 VS wave64
+  ●   By default, only pixel/fragment shaders are wave64
+  ●   A wave64 wavefront consists of up to 64 threads ⇒
+      their local variables require 644 bytes of data
+  ●   Wave64 VGPRs are backed by 2 physical VGPR
+      registers ⇒ very expensive!
+  ●   Operations on wave64 workloads also take twice as
+      many clocks to execute
+  ●   Subvector execution can mitigate VGPR pressure
+      due to wave64
+  ●   Modern shading languages expose wavesize
+      settings
+    Maximum occupancy VS registers
+Wave32
+VGPR max        48    56    64    72    80    88    96   112   128   144   168   200   256
+
+Wavefronts      20    18    16    14    12    11    10     9     8     7     6     5     4
+
+Utilization   100%   90%   80%   70%   60%   55%   50%   45%   40%   35%   30%   25%   20%
+    Maximum occupancy VS registers
+Wave32
+VGPR max        48    56    64    72    80    88    96   112   128   144   168   200   256
+
+Wavefronts      20    18    16    14    12    11    10     9     8     7     6     5     4
+
+Utilization   100%   90%   80%   70%   60%   55%   50%   45%   40%   35%   30%   25%   20%
+
+Wave64
+VGPR max        24    28    32    36    40    44    48    56    64    72    84   100   128
+
+Wavefronts      20    18    16    14    12    11    10     9     8     7     6     5     4
+
+Utilization   100%   90%   80%   70%   60%   55%   50%   45%   40%   35%   30%   25%   20%
+Table of
+contents   AMD RDNA architecture
+
+
+
+
+           GPU ISA assembly
+
+
+
+
+           Case studies
+#version 450
+
+
+layout(location = 0) in   vec3 fragColor;
+layout(location = 0) out vec4 outColor;
+
+
+void main()
+{
+    outColor = vec4(fragColor, 1.0f);
+}
+                                            s_version             UC_VERSION_GFX10 | UC_VERSION_W64_BIT
+                                            s_inst_prefetch       0x0003
+#version 450
+                                            s_mov_b32             m0, s2
+                                            v_interp_p1_f32       v2, v0, attr0.x
+layout(location = 0) in   vec3 fragColor;
+                                            v_interp_p1_f32       v3, v0, attr0.y
+layout(location = 0) out vec4 outColor;
+                                            v_interp_p1_f32       v0, v0, attr0.z
+                                            v_interp_p2_f32       v2, v1, attr0.x
+void main()
+                                            v_interp_p2_f32       v3, v1, attr0.y
+{
+                                            v_interp_p2_f32       v0, v1, attr0.z
+    outColor = vec4(fragColor, 1.0f);
+                                            v_cvt_pkrtz_f16_f32   v2, v2, v3
+}
+                                            v_cvt_pkrtz_f16_f32   v3, v0, 1.0
+                                            exp                   mrt0, v2, v2, v3, v3 done compr vm
+                                            s_endpgm
+                       s_version             UC_VERSION_GFX10 | UC_VERSION_W64_BIT
+Scalar instructions    s_inst_prefetch       0x0003
+                       s_mov_b32             m0, s2
+                       v_interp_p1_f32       v2, v0, attr0.x
+                       v_interp_p1_f32       v3, v0, attr0.y
+                       v_interp_p1_f32       v0, v0, attr0.z
+                       v_interp_p2_f32       v2, v1, attr0.x
+ Vector instructions   v_interp_p2_f32       v3, v1, attr0.y
+                       v_interp_p2_f32       v0, v1, attr0.z
+                       v_cvt_pkrtz_f16_f32   v2, v2, v3
+                       v_cvt_pkrtz_f16_f32   v3, v0, 1.0
+
+ Export instructions   exp                   mrt0, v2, v2, v3, v3 done compr vm
+                       s_endpgm
+                      s_version                          UC_VERSION_GFX10 |
+                                                          UC_VERSION_W64_BIT
+Scalar instructions
+                      s_inst_prefetch                    0x0003
+                      s_mov_b32                          m0, s2
+                      v_interp_p1_f32       v2, v0, attr0.x
+                      v_interp_p1_f32       v3, v0, attr0.y
+                      v_interp_p1_f32       v0, v0, attr0.z
+                      v_interp_p2_f32       v2, v1, attr0.x
+                      v_interp_p2_f32       v3, v1, attr0.y
+                      v_interp_p2_f32       v0, v1, attr0.z
+                      v_cvt_pkrtz_f16_f32   v2, v2, v3
+                      v_cvt_pkrtz_f16_f32   v3, v0, 1.0
+                      exp                   mrt0, v2, v2, v3, v3 done compr vm
+                      s_endpgm
+LDS
+                 ●   Local Data Store: 128KB per WGP
+                 ●   For sharing data among threadgroups (variables with
+                     groupshared/shared storage qualifier) and different graphics pipeline
+                     shader stages (this is happening behind your backs)
+
+
+
+
+                                                                          Texture addresser
+     SIMD32 processor                          SIMD32 processor             Texture data
+                                                                                              L0$
+I$
+                                LDS
+K$                                                                        Texture addresser
+     SIMD32 processor                          SIMD32 processor             Texture data
+                                                                                              L0$
+Occupancy VS LDS
+  ●   The 4 SIMDs share a 128KB LDS
+  ●   Up to 420 wavefronts content for this space
+  ●   The shared and groupshared variables are
+      per-threadgroup
+  ●   A threadgroup may allocate up to 32KB from
+      the LDS as per DX specifications - but that
+      would limit occupancy (severely)
+  ●   Exact mechanics for this are NDAʼd but profilers
+      will let you uncover the magic numbers
+VGPR and SGPR initial values
+  ●   Certain values are preloaded into VGPRs and SGPRs,
+      depending on the shader type
+  ●   There are also 32 SGPRs free for grabs (the actual place
+      of root/push constants in DX12/Vulkan)
+  ●   In the above example: s2 was pre-loaded with the LDS
+      address of the parameter cache
+  ●   There are also some special registers that serve a
+      specific purpose and are oftentimes read implicitly by
+      various instructions
+                      s_version         UC_VERSION_GFX10 | UC_VERSION_W64_BIT
+                      s_inst_prefetch   0x0003
+                      s_mov_b32         m0, s2
+
+                      v_interp_p1_f32             v2, v0, attr0.x
+                      v_interp_p1_f32             v3, v0, attr0.y
+                      v_interp_p1_f32             v0, v0, attr0.z
+                      v_interp_p2_f32             v2, v1, attr0.x
+Vector instructions
+                      v_interp_p2_f32             v3, v1, attr0.y
+                      v_interp_p2_f32             v0, v1, attr0.z
+                      v_cvt_pkrtz_f16_f32         v2, v2, v3
+                      v_cvt_pkrtz_f16_f32         v3, v0, 1.0
+                      exp               mrt0, v2, v2, v3, v3 done compr vm
+                      s_endpgm
+v0   v1
+                   v0        v1
+
+
+
+
+V_interp_p1_f32 + v_interp_p2_f32
+Fused multiply-add
+  ●   a*x + b
+  ●   You can carry out a multiply
+      and an add in a single cycle
+  ●   It is both a performance and
+      precision optimisation
+  ●   The GPU compiler is very
+      aggressive about FMA-ing
+                      s_version             UC_VERSION_GFX10 | UC_VERSION_W64_BIT
+                      s_inst_prefetch       0x0003
+                      s_mov_b32             m0, s2
+                      v_interp_p1_f32       v2, v0, attr0.x
+                      v_interp_p1_f32       v3, v0, attr0.y
+                      v_interp_p1_f32       v0, v0, attr0.z
+                      v_interp_p2_f32       v2, v1, attr0.x
+                      v_interp_p2_f32       v3, v1, attr0.y
+                      v_interp_p2_f32       v0, v1, attr0.z
+                      v_cvt_pkrtz_f16_f32   v2, v2, v3
+                      v_cvt_pkrtz_f16_f32   v3, v0, 1.0
+
+                      exp         mrt0, v2, v2, v3, v3 done compr vm
+Export instructions
+                      s_endpgm
+shader main                                                                                    …
+  asic(GFX10_3)                                                                                    s_code_end   // 0000000000A0: BF9F0000
+  type(PS)                                                                                         s_code_end   // 0000000000A4: BF9F0000
+  sgpr_count(6)                                                                                    s_code_end   // 0000000000A8: BF9F0000
+  vgpr_count(4)                                                                                    s_code_end   // 0000000000AC: BF9F0000
+  wave_size(64)                                                                                    s_code_end   // 0000000000B0: BF9F0000
+                                                              // s_ps_state in s0                  s_code_end   // 0000000000B4: BF9F0000
+                                                                                                   s_code_end   // 0000000000B8: BF9F0000
+  s_version       UC_VERSION_GFX10 | UC_VERSION_W64_BIT   // 000000000000: B0802004                s_code_end   // 0000000000BC: BF9F0000
+  s_inst_prefetch    0x0003                               // 000000000004: BFA00003                s_code_end   // 0000000000C0: BF9F0000
+  s_mov_b32       m0, s2                                  // 000000000008: BEFC0302                s_code_end   // 0000000000C4: BF9F0000
+  v_interp_p1_f32    v0, v0, attr0.x                      // 00000000000C: C8000000                s_code_end   // 0000000000C8: BF9F0000
+  v_interp_p2_f32    v0, v1, attr0.x                      // 000000000010: C8010001                s_code_end   // 0000000000CC: BF9F0000
+  v_cvt_pkrtz_f16_f32      v1, v0, 0                      // 000000000014: D52F0001 00010100       s_code_end   // 0000000000D0: BF9F0000
+  exp             mrt0, v1, v1, off, off done compr vm    // 00000000001C: F8001C03 00000001       s_code_end   // 0000000000D4: BF9F0000
+  s_endpgm                                                // 000000000024: BF810000                s_code_end   // 0000000000D8: BF9F0000
+  s_code_end                                              // 000000000028: BF9F0000                s_code_end   // 0000000000DC: BF9F0000
+  s_code_end                                              // 00000000002C: BF9F0000                s_code_end   // 0000000000E0: BF9F0000
+  s_code_end                                              // 000000000030: BF9F0000                s_code_end   // 0000000000E4: BF9F0000
+  s_code_end                                              // 000000000034: BF9F0000                s_code_end   // 0000000000E8: BF9F0000
+  s_code_end                                              // 000000000038: BF9F0000                s_code_end   // 0000000000EC: BF9F0000
+  s_code_end                                              // 00000000003C: BF9F0000                s_code_end   // 0000000000F0: BF9F0000
+  s_code_end                                              // 000000000040: BF9F0000                s_code_end   // 0000000000F4: BF9F0000
+  s_code_end                                              // 000000000044: BF9F0000                s_code_end   // 0000000000F8: BF9F0000
+  s_code_end                                              // 000000000048: BF9F0000                s_code_end   // 0000000000FC: BF9F0000
+  s_code_end                                              // 00000000004C: BF9F0000                s_code_end   // 000000000100: BF9F0000
+  s_code_end                                              // 000000000050: BF9F0000                s_code_end   // 000000000104: BF9F0000
+  s_code_end                                              // 000000000054: BF9F0000                s_code_end   // 000000000108: BF9F0000
+  s_code_end                                              // 000000000058: BF9F0000                s_code_end   // 00000000010C: BF9F0000
+  s_code_end                                              // 00000000005C: BF9F0000                s_code_end   // 000000000110: BF9F0000
+  s_code_end                                              // 000000000060: BF9F0000                s_code_end   // 000000000114: BF9F0000
+  s_code_end                                              // 000000000064: BF9F0000                s_code_end   // 000000000118: BF9F0000
+  s_code_end                                              // 000000000068: BF9F0000                s_code_end   // 00000000011C: BF9F0000
+  s_code_end                                              // 00000000006C: BF9F0000                s_code_end   // 000000000120: BF9F0000
+  s_code_end                                              // 000000000070: BF9F0000                s_code_end   // 000000000124: BF9F0000
+  s_code_end                                              // 000000000074: BF9F0000            end
+  s_code_end                                              // 000000000078: BF9F0000
+  s_code_end                                              // 00000000007C: BF9F0000
+  s_code_end                                              // 000000000080: BF9F0000
+  s_code_end                                              // 000000000084: BF9F0000
+  s_code_end                                              // 000000000088: BF9F0000
+  s_code_end                                              // 00000000008C: BF9F0000
+  s_code_end                                              // 000000000090: BF9F0000
+  s_code_end                                              // 000000000094: BF9F0000
+  s_code_end                                              // 000000000098: BF9F0000
+  s_code_end                                              // 00000000009C: BF9F0000
+...
+shader main                                                                                    …
+  asic(GFX10_3)                                                                                    s_code_end   // 0000000000A0: BF9F0000
+  type(PS)                                                                                         s_code_end   // 0000000000A4: BF9F0000
+  sgpr_count(6)                                                                                    s_code_end   // 0000000000A8: BF9F0000
+  vgpr_count(4)                                                                                    s_code_end   // 0000000000AC: BF9F0000
+  wave_size(64)                                                                                    s_code_end   // 0000000000B0: BF9F0000
+                                                              // s_ps_state in s0                  s_code_end   // 0000000000B4: BF9F0000
+                                                                                                   s_code_end   // 0000000000B8: BF9F0000
+  s_version       UC_VERSION_GFX10 | UC_VERSION_W64_BIT   // 000000000000: B0802004                s_code_end   // 0000000000BC: BF9F0000
+  s_inst_prefetch    0x0003                               // 000000000004: BFA00003                s_code_end   // 0000000000C0: BF9F0000
+  s_mov_b32       m0, s2                                  // 000000000008: BEFC0302                s_code_end   // 0000000000C4: BF9F0000
+  v_interp_p1_f32    v0, v0, attr0.x                      // 00000000000C: C8000000                s_code_end   // 0000000000C8: BF9F0000
+  v_interp_p2_f32
+  v_cvt_pkrtz_f16_f32
+                     v0, v1, attr0.x
+                           v1, v0, 0
+                                        asic(GFX10_ 3)    // 000000000010: C8010001
+                                                          // 000000000014: D52F0001 00010100
+                                                                                                   s_code_end
+                                                                                                   s_code_end
+                                                                                                                // 0000000000CC: BF9F0000
+                                                                                                                // 0000000000D0: BF9F0000
+  exp             mrt0, v1, v1, off, off done compr vm    // 00000000001C: F8001C03 00000001       s_code_end   // 0000000000D4: BF9F0000
+  s_endpgm                              type(PS)          // 000000000024: BF810000                s_code_end   // 0000000000D8: BF9F0000
+  s_code_end                                              // 000000000028: BF9F0000                s_code_end   // 0000000000DC: BF9F0000
+  s_code_end                                              // 00000000002C: BF9F0000                s_code_end   // 0000000000E0: BF9F0000
+  s_code_end                            sgpr_count( 6)    // 000000000030: BF9F0000                s_code_end   // 0000000000E4: BF9F0000
+  s_code_end                                              // 000000000034: BF9F0000                s_code_end   // 0000000000E8: BF9F0000
+  s_code_end
+  s_code_end
+                                        vgpr_count( 4)    // 000000000038: BF9F0000
+                                                          // 00000000003C: BF9F0000
+                                                                                                   s_code_end
+                                                                                                   s_code_end
+                                                                                                                // 0000000000EC: BF9F0000
+                                                                                                                // 0000000000F0: BF9F0000
+  s_code_end                                              // 000000000040: BF9F0000                s_code_end   // 0000000000F4: BF9F0000
+  s_code_end
+  s_code_end
+                                        wave_size( 64)    // 000000000044: BF9F0000
+                                                          // 000000000048: BF9F0000
+                                                                                                   s_code_end
+                                                                                                   s_code_end
+                                                                                                                // 0000000000F8: BF9F0000
+                                                                                                                // 0000000000FC: BF9F0000
+  s_code_end                                              // 00000000004C: BF9F0000                s_code_end   // 000000000100: BF9F0000
+  s_code_end                                              // 000000000050: BF9F0000                s_code_end   // 000000000104: BF9F0000
+  s_code_end                                              // 000000000054: BF9F0000                s_code_end   // 000000000108: BF9F0000
+  s_code_end                                              // 000000000058: BF9F0000                s_code_end   // 00000000010C: BF9F0000
+  s_code_end                                              // 00000000005C: BF9F0000                s_code_end   // 000000000110: BF9F0000
+  s_code_end                                              // 000000000060: BF9F0000                s_code_end   // 000000000114: BF9F0000
+  s_code_end                                              // 000000000064: BF9F0000                s_code_end   // 000000000118: BF9F0000
+  s_code_end                                              // 000000000068: BF9F0000                s_code_end   // 00000000011C: BF9F0000
+  s_code_end                                              // 00000000006C: BF9F0000                s_code_end   // 000000000120: BF9F0000
+  s_code_end                                              // 000000000070: BF9F0000                s_code_end   // 000000000124: BF9F0000
+  s_code_end                                              // 000000000074: BF9F0000            end
+  s_code_end                                              // 000000000078: BF9F0000
+  s_code_end                                              // 00000000007C: BF9F0000
+  s_code_end                                              // 000000000080: BF9F0000
+  s_code_end                                              // 000000000084: BF9F0000
+  s_code_end                                              // 000000000088: BF9F0000
+  s_code_end                                              // 00000000008C: BF9F0000
+  s_code_end                                              // 000000000090: BF9F0000
+  s_code_end                                              // 000000000094: BF9F0000
+  s_code_end                                              // 000000000098: BF9F0000
+  s_code_end                                              // 00000000009C: BF9F0000
+...
+float x = mix(a, b, t);
+   float x = mix(a, b, t);
+
+
+
+
+v_sub_f32_e32    v0,   v0,   v3
+v_fmac_f32_e32   v3,   v0,   v1
+   float x = mix(a, b, t);
+
+
+
+
+                       b     a
+v_sub_f32_e32    v0,   v0,   v3
+v_fmac_f32_e32   v3,   v0,   v1
+   float x = mix(a, b, t);
+
+
+
+
+                       b     a
+v_sub_f32_e32    v0,   v0,   v3   v0 = b - a
+v_fmac_f32_e32   v3,   v0,   v1
+   float x = mix(a, b, t);
+
+
+
+
+                       b     a
+v_sub_f32_e32    v0,   v0,   v3   v0 = b - a
+v_fmac_f32_e32   v3,   v0,   v1   a += t * v0
+                             t
+   float x = mix(a, b, t);
+
+
+
+
+v_sub_f32_e32    v0,   v0,   v3
+v_fmac_f32_e32   v3,   v0,   v1
+float di = clamp( dot(inNormal, inToLight), 0.0, 1.0 );
+float di = clamp( dot(inNormal, inToLight), 0.0, 1.0 );
+
+
+
+
+    v_mul_f32              v2, v2, v3
+    v_fmac_f32             v2, v4, v5
+    v_fma_f32              v1, v3, v0, v2 clamp
+s_version             UC_VERSION_GFX10 | UC_VERSION_W64_BIT
+s_inst_prefetch       0x0003
+s_mov_b32             m0, s2
+v_interp_p1_f32       v2, v0, attr0.x
+v_interp_p1_f32       v3, v0, attr1.x
+v_interp_p1_f32       v4, v0, attr0.y                      ●   The non-transcendental VALU is a 5
+v_interp_p2_f32       v2, v1, attr0.x                          stage pipeline
+v_interp_p2_f32       v3, v1, attr1.x
+                                                           ●   The transcendental is twice as long
+v_interp_p1_f32       v5, v0, attr1.y
+v_interp_p2_f32       v4, v1, attr0.y
+                                                               but can co-issue with the
+v_mul_f32             v2, v2, v3                               non-transcendental
+v_interp_p2_f32       v5, v1, attr1.y                      ●   The compiler will re-shuffle the ISA to
+v_interp_p1_f32       v3, v0, attr0.z
+                                                               mitigate the resulting data stalls
+v_interp_p1_f32       v0, v0, attr1.z
+v_fmac_f32            v2, v4, v5
+                                                           ●   Worst-case, it can still select another
+v_interp_p2_f32       v3, v1, attr0.z                          wavefront for execution
+v_interp_p2_f32       v0, v1, attr1.z
+v_fma_f32             v1, v3, v0, v2 clamp
+v_cvt_pkrtz_f16_f32   v2, v1, v1
+v_cvt_pkrtz_f16_f32   v3, v1, 1.0
+exp                   mrt0, v2, v2, v3, v3 done compr vm
+s_endpgm
+Instruction rates
+●   Some instructions take longer to
+    execute
+●   Full rate instructions are the simple
+    ones FMA, Mul, etc.) provided all their
+    arguments could be fetched
+●   Quarter rate instructions take 4x as many cycles,
+    These are usually the transcendental unit ones
+●   And many take unknown amount of time - e.g.
+    memory reads
+  float di = clamp( dot(inNormal, inToLight), 0.0, 1.0 );
+
+
+
+
+      v_mul_f32              v2, v2, v3
+      v_fmac_f32             v2, v4, v5
+      v_fma_f32              v1, v3, v0, v2 clamp
+
+float v2 = inNormal.x * inToLight.x;
+     v2 += inNormal.y * inToLight.y;
+float v1 = v2 + inNormal.z * inToLight.z;
+     v1 = clamp( v1, 0.0, 1.0 );
+  float di = clamp( dot(inNormal, inToLight), 0.0, 1.0 );
+
+
+
+
+      v_mul_f32              v2, v2, v3
+      v_fmac_f32             v2, v4, v5
+      v_fma_f32              v1, v3, v0, v2 clamp
+
+float v2 = inNormal.x * inToLight.x;
+      v2 += inNormal.y * inToLight.y;
+float v1 = v2 + inNormal.z * inToLight.z;
+     v1 = clamp( v1, 0.0, 1.0 );
+  float di = clamp( dot(inNormal, inToLight), 0.0, 1.0 );
+
+
+
+
+      v_mul_f32              v2, v2, v3
+      v_fmac_f32             v2, v4, v5
+      v_fma_f32              v1, v3, v0, v2 clamp
+
+float v2 = inNormal.x * inToLight.x;
+      v2 += inNormal.y * inToLight.y;
+float v1 = v2 + inNormal.z * inToLight.z;
+     v1 = clamp( v1, 0.0, 1.0 );
+Modifiers for free!
+●   Certain floating point VALU commands allow you to apply free modifiers
+     ○ On inputs: absolute value and negation
+     ○ On outputs: multiplication by powers of two (0.5, 1, 2, 4), clamp
+●   These come for free - use them
+float result = 2.0 * ( abs(a) * (-b) + c );
+⇔
+v_fma_f32   v1, abs(v2), -v3, v0 mul:2
+float result = 2.0 * ( abs(a) * (-b) + c );
+⇔
+v_fma_f32   v1, abs(v2), -v3, v0 mul:2
+
+
+float result = clamp( a * abs(b) - c, 0.0, 1.0);
+⇔
+v_fma_f32    v1, v2, abs(v3), -v0 clamp
+float result = 2.0 * ( abs(a) * (-b) + c );
+⇔
+v_fma_f32    v1, abs(v2), -v3, v0 mul:2
+
+
+float result = clamp( a * abs(b) - c, 0.0, 1.0);
+⇔
+v_fma_f32    v1, v2, abs(v3), -v0 clamp
+
+
+
+float result = clamp( a * abs(b) - c, -1.0, 2.0);
+⇔
+v_fma_f32    v1, v2, abs(v3), -v0
+v_med3_f32   v0, v1, -1.0, 2.0
+Instruction encoding
+
+
+            opcode     argument 1   argument 2   …
+Instruction encoding
+
+
+                     opcode         argument 1   argument 2   …
+
+
+
+
+ Some number of bits
+ encode the actual operation
+ (addition, multiplication, etc.)
+Instruction encoding
+
+
+                     opcode              argument 1         argument 2   …
+
+
+
+
+ Some number of bits                Some bits identify the various
+ encode the actual operation        arguments. Inlining constants
+ (addition, multiplication, etc.)   (e.g. 32 bit ints) means that the
+                                    encoding of your command will
+                                    be long!
+Instruction encoding
+
+
+                     opcode              argument 1         argument 2             …
+
+
+
+
+                                                                         There are a lot of other things
+ Some number of bits                Some bits identify the various       that may be encoded into the
+ encode the actual operation        arguments. Inlining constants        bits that represent an
+ (addition, multiplication, etc.)   (e.g. 32 bit ints) means that the    instruction. For example
+                                    encoding of your command will        instruction classes (read:
+                                    be long!                             instructions with one argument
+                                                                         have a certain bit prefix,
+                                                                         another one for instructions
+                                                                         with two arguments, etc.).
+●   Identifies that this is a
+    VOP3A command encoding
+●   Vector ALU format with three
+    operands
+●   Identifies that this is a
+    VOP3A command encoding
+●   Vector ALU format with three
+    operands
+                                   The ID of the particular command.
+                                   For example:
+                                    ● 320 = V_FMA_LEGACY_F32,
+                                    ● 331 = V_FMA_F32,
+                                    ● 343 = V_MED3_F32, etc.
+                                                   Clamp
+                                                   output
+
+
+
+●   Identifies that this is a
+    VOP3A command encoding
+●   Vector ALU format with three
+    operands
+                                   The ID of the particular command.
+                                   For example:
+                                    ● 320 = V_FMA_LEGACY_F32,
+                                    ● 331 = V_FMA_F32,
+                                    ● 343 = V_MED3_F32, etc.
+                                                   Clamp
+                                                   output
+
+
+
+●   Identifies that this is a
+    VOP3A command encoding
+●   Vector ALU format with three                                       ●   Operand select for
+    operands                                                               16-bit data. Bits 11-14
+                                   The ID of the particular command.
+                                   For example:                            in the 64 bit command
+                                    ● 320 = V_FMA_LEGACY_F32,              packed.
+                                    ● 331 = V_FMA_F32,                 ●   Values mean 0 =
+                                    ● 343 = V_MED3_F32, etc.               select low half, 1 =
+                                                                           select high half.
+                                                                       ●   Bits semantics: src0,
+                                                                           src1, src2, dest
+                                                                                   Take absolute
+                                                   Clamp
+                                                                                   of src0, src1,
+                                                   output
+                                                                                   or src2.
+
+
+●   Identifies that this is a
+    VOP3A command encoding
+●   Vector ALU format with three                                       ●   Operand select for
+    operands                                                               16-bit data. Bits 11-14
+                                   The ID of the particular command.
+                                   For example:                            in the 64 bit command
+                                    ● 320 = V_FMA_LEGACY_F32,              packed.
+                                    ● 331 = V_FMA_F32,                 ●   Values mean 0 =
+                                    ● 343 = V_MED3_F32, etc.               select low half, 1 =
+                                                                           select high half.
+                                                                       ●   Bits semantics: src0,
+                                                                           src1, src2, dest
+                                                                                        Take absolute
+Negate src0,                                            Clamp
+                                                                                        of src0, src1,
+src1, or src2.                                          output
+                                                                                        or src2.
+
+
+    ●    Identifies that this is a
+         VOP3A command encoding
+    ●    Vector ALU format with three                                       ●   Operand select for
+         operands                                                               16-bit data. Bits 11-14
+                                        The ID of the particular command.
+                                        For example:                            in the 64 bit command
+                                         ● 320 = V_FMA_LEGACY_F32,              packed.
+                                         ● 331 = V_FMA_F32,                 ●   Values mean 0 =
+                                         ● 343 = V_MED3_F32, etc.               select low half, 1 =
+                                                                                select high half.
+                                                                            ●   Bits semantics: src0,
+                                                                                src1, src2, dest
+                                                                                          Take absolute
+Negate src0,           Output Modifier:                   Clamp
+                                                                                          of src0, src1,
+src1, or src2.         0=none, 1=*2,                      output
+                                                                                          or src2.
+                       2=*4, 3=div-2
+
+    ●    Identifies that this is a
+         VOP3A command encoding
+    ●    Vector ALU format with three                                         ●   Operand select for
+         operands                                                                 16-bit data. Bits 11-14
+                                          The ID of the particular command.
+                                          For example:                            in the 64 bit command
+                                           ● 320 = V_FMA_LEGACY_F32,              packed.
+                                           ● 331 = V_FMA_F32,                 ●   Values mean 0 =
+                                           ● 343 = V_MED3_F32, etc.               select low half, 1 =
+                                                                                  select high half.
+                                                                              ●   Bits semantics: src0,
+                                                                                  src1, src2, dest
+These 9 bits encode 512 different values that are partitioned as:
+ ● 0-127: SGPR values (with some system ones 108 onward)
+ ● 128-192: signed integers from 0 to 64
+ ● 193-208: signed integers from -1 to -16
+ ● …lots of interesting things, including, but not limited to:
+      ○ 240: 0.5
+      ○ 241: -0.5
+      ○ (you have +/- 0.5…4)
+      ○ 248: 1 / (2*PI) = 0.15915494
+ ● …
+ ● 256-511: VGPRs
+                                                                    Destination VGPR 0-255.
+These 9 bits encode 512 different values that are partitioned as:
+ ● 0-127: SGPR values (with some system ones 108 onward)
+ ● 128-192: signed integers from 0 to 64
+ ● 193-208: signed integers from -1 to -16
+ ● …lots of interesting things, including, but not limited to:
+      ○ 240: 0.5
+      ○ 241: -0.5
+      ○ (you have +/- 0.5…4)
+      ○ 248: 1 / (2*PI) = 0.15915494
+ ● …
+ ● 256-511: VGPRs
+layout(location = 0) in vec3 in_normal;
+...
+normalize( in_normal );
+layout(location = 0) in vec3 in_normal;
+...
+normalize( in_normal );
+
+
+
+  v_mul_legacy_f32    v1, v2, v2
+  v_fmac_f32          v1, v3, v3
+  v_fmac_f32          v1, v0, v0
+  v_rsq_f32           v1, v1
+  v_mul_legacy_f32    v2, v2, v1
+  v_mul_legacy_f32    v3, v3, v1
+  v_mul_legacy_f32    v0, v0, v1
+layout(location = 0) in vec3 in_normal;
+...
+normalize( in_normal );
+
+
+
+  v_mul_legacy_f32    v1, v2, v2
+                                   v1 = dot( in_normal,
+  v_fmac_f32          v1, v3, v3
+                                            in_normal)
+  v_fmac_f32          v1, v0, v0
+  v_rsq_f32           v1, v1
+  v_mul_legacy_f32    v2, v2, v1
+  v_mul_legacy_f32    v3, v3, v1
+  v_mul_legacy_f32    v0, v0, v1
+layout(location = 0) in vec3 in_normal;
+...
+normalize( in_normal );
+
+
+
+  v_mul_legacy_f32    v1, v2, v2
+                                   v1 = dot( in_normal,
+  v_fmac_f32          v1, v3, v3
+                                             in_normal)
+  v_fmac_f32          v1, v0, v0
+  v_rsq_f32           v1, v1       v1 = 1.0 / sqrt(v1)
+
+  v_mul_legacy_f32    v2, v2, v1
+  v_mul_legacy_f32    v3, v3, v1
+  v_mul_legacy_f32    v0, v0, v1
+layout(location = 0) in vec3 in_normal;
+...
+normalize( in_normal );
+
+
+
+  v_mul_legacy_f32    v1, v2, v2
+                                   v1 = dot( in_normal,
+  v_fmac_f32          v1, v3, v3
+                                             in_normal)
+  v_fmac_f32          v1, v0, v0
+  v_rsq_f32           v1, v1       v1 = 1.0 / sqrt(v1)
+
+  v_mul_legacy_f32    v2, v2, v1
+  v_mul_legacy_f32    v3, v3, v1   in_normal *= v1
+
+  v_mul_legacy_f32    v0, v0, v1
+vec3 normal = normalize(fragNormal);
+
+
+outColor = vec4(normal, 1.0f);
+
+
+
+
+v_mul_legacy_f32       v1, v2, v2
+v_fmac_legacy_f32      v1, v3, v3
+v_fmac_legacy_f32      v1, v0, v0
+v_rsq_f32              v1, v1
+v_mul_legacy_f32       v2, v2, v1
+v_mul_legacy_f32       v3, v3, v1
+v_mul_legacy_f32       v0, v0, v1
+v_cvt_pkrtz_f16_f32    v2, v2, v3
+v_cvt_pkrtz_f16_f32    v3, v0, 1.0
+exp                    mrt0, v2, v2,
+v3, v3 done compr vm
+vec3 normal = normalize(fragNormal);   float lenSq       = dot(fragNormal, fragNormal);
+                                       float rsqLenSq = ( lenSq != 0.0 ) ? inversesqrt(lenSq) : 1.0;
+outColor = vec4(normal, 1.0f);         vec3   normal     = fragNormal * rsqLenSq;
+
+
+                                       outColor = vec4(normal, 1.0f);
+
+
+
+
+v_mul_legacy_f32       v1, v2, v2      v_mul_f32                 v1, v2, v2
+v_fmac_legacy_f32      v1, v3, v3      v_fmac_f32                v1, v3, v3
+v_fmac_legacy_f32      v1, v0, v0      v_fmac_f32                v1, v0, v0
+v_rsq_f32              v1, v1          v_cmp_neq_f32             vcc, 0, v1
+v_mul_legacy_f32       v2, v2, v1      v_rsq_f32                 v1, v1
+v_mul_legacy_f32       v3, v3, v1      v_cndmask_b32             v1, 1.0, v1, vcc
+v_mul_legacy_f32       v0, v0, v1      v_mul_f32                 v0, v0, v1
+v_cvt_pkrtz_f16_f32    v2, v2, v3      s_round_mode              0x000c
+v_cvt_pkrtz_f16_f32    v3, v0, 1.0     v_fma_mixlo_f16           v2, v2, v1, 0
+exp                    mrt0, v2, v2,   v_fma_mixhi_f16           v2, v3, v1, 0
+v3, v3 done compr vm                   v_cvt_pkrtz_f16_f32       v1, v0, 1.0
+                                       s_round_mode              0x0000
+                                       exp                      mrt0, v2, v2, v1, v1 done compr vm
+layout(location = 0) in vec3    fragData;
+layout(location = 1) in float fragValueA;
+layout(location = 2) in float fragValueB;
+...
+vec3 helpValue = fragValueA * (fragValueB * fragData);
+
+
+
+
+v_mul_f32          v4, v3, v4
+v_mul_f32          v5, v3, v5
+v_mul_f32          v0, v3, v0
+v_mul_f32          v3, v1, v4
+v_mul_f32          v1, v1, v5
+v_mul_f32          v0, v2, v0
+layout(location = 0) in vec3    fragData;                layout(location = 0) in vec3   fragData;
+layout(location = 1) in float fragValueA;                layout(location = 1) in float fragValueA;
+layout(location = 2) in float fragValueB;                layout(location = 2) in float fragValueB;
+...                                                      ...
+vec3 helpValue = fragValueA * (fragValueB * fragData);   vec3 helpValue = (fragValueA * fragValueB) * fragData;
+
+
+
+
+v_mul_f32          v4, v3, v4                            v_mul_f32    v2, v2, v3
+v_mul_f32          v5, v3, v5                            v_mul_f32    v1, v5, v4
+v_mul_f32          v0, v3, v0                            v_mul_f32    v3, v5, v3
+v_mul_f32          v3, v1, v4                            v_mul_f32    v0, v2, v0
+v_mul_f32          v1, v1, v5
+v_mul_f32          v0, v2, v0
+layout(location = 0) in float cond;
+void main() {
+    if (cond < 0.0) outColor = vec4(1,0,0,1);
+    else            outColor = vec4(0,1,0,1);
+}
+      layout(location = 0) in float cond;
+      void main() {
+           if (cond < 0.0) outColor = vec4(1,0,0,1);
+           else            outColor = vec4(0,1,0,1);
+      }
+
+s_version             UC_VERSION_GFX10 | UC_VERSION_W64_BIT
+s_inst_prefetch       0x0003
+s_mov_b32             m0, s2
+v_interp_p1_f32       v0, v0, attr0.x
+v_interp_p2_f32       v0, v1, attr0.x
+v_cmp_gt_f32          vcc, 0, v0
+v_cndmask_b32         v0, 1.0, 0, vcc
+v_cndmask_b32         v1, 0, 1.0, vcc
+v_cvt_pkrtz_f16_f32   v0, v1, v0
+v_mov_b32             v1, lit(0x3c000000)
+exp                   mrt0, v0, v0, v1, v1 done compr vm
+s_endpgm
+      layout(location = 0) in float cond;
+      void main() {
+           if (cond < 0.0) outColor = vec4(1,0,0,1);
+           else            outColor = vec4(0,1,0,1);
+      }
+
+s_version             UC_VERSION_GFX10 | UC_VERSION_W64_BIT
+s_inst_prefetch       0x0003
+s_mov_b32             m0, s2
+v_interp_p1_f32       v0, v0, attr0.x
+v_interp_p2_f32       v0, v1, attr0.x
+v_cmp_gt_f32          vcc, 0, v0                   Standard start and export
+v_cndmask_b32         v0, 1.0, 0, vcc              boilerplate.
+v_cndmask_b32         v1, 0, 1.0, vcc
+v_cvt_pkrtz_f16_f32   v0, v1, v0
+v_mov_b32             v1, lit(0x3c000000)
+exp                   mrt0, v0, v0, v1, v1 done compr vm
+s_endpgm
+      layout(location = 0) in float cond;
+      void main() {
+           if (cond < 0.0) outColor = vec4(1,0,0,1);
+           else            outColor = vec4(0,1,0,1);
+      }
+
+s_version             UC_VERSION_GFX10 | UC_VERSION_W64_BIT
+s_inst_prefetch       0x0003
+s_mov_b32             m0, s2
+v_interp_p1_f32       v0, v0, attr0.x         Standard interpolation boilerplate:
+v_interp_p2_f32       v0, v1, attr0.x          ● If there’s at least one attribute to
+v_cmp_gt_f32          vcc, 0, v0                   interpolate there’s a setup line for m0
+                                               ● Then for each scalar of all
+v_cndmask_b32         v0, 1.0, 0, vcc
+                                                   interpolated attributes, there are two
+v_cndmask_b32         v1, 0, 1.0, vcc              v_interp_p{1|2} or similar calls
+v_cvt_pkrtz_f16_f32   v0, v1, v0
+v_mov_b32             v1, lit(0x3c000000)
+exp                   mrt0, v0, v0, v1, v1 done compr vm
+s_endpgm
+      layout(location = 0) in float cond;
+      void main() {
+           if (cond < 0.0) outColor = vec4(1,0,0,1);
+           else            outColor = vec4(0,1,0,1);
+      }
+
+s_version             UC_VERSION_GFX10 | UC_VERSION_W64_BIT
+s_inst_prefetch       0x0003
+s_mov_b32             m0, s2
+v_interp_p1_f32       v0, v0, attr0.x
+                                            ●   VCC is a special SGPR that stores a single
+v_interp_p2_f32       v0, v1, attr0.x
+                                                bit for each thread within the wavefront
+v_cmp_gt_f32          vcc, 0, v0            ●   The i-th bit is 1 if the thread is active and the
+v_cndmask_b32         v0, 1.0, 0, vcc           comparison was true on the i-th thread
+v_cndmask_b32         v1, 0, 1.0, vcc       ●   Here: bit is 1 iff v0 is greater than 0.0
+v_cvt_pkrtz_f16_f32   v0, v1, v0
+v_mov_b32             v1, lit(0x3c000000)
+exp                   mrt0, v0, v0, v1, v1 done compr vm
+s_endpgm
+      layout(location = 0) in float cond;
+      void main() {
+           if (cond < 0.0) outColor = vec4(1,0,0,1);
+           else            outColor = vec4(0,1,0,1);
+      }
+
+s_version             UC_VERSION_GFX10 | UC_VERSION_W64_BIT
+s_inst_prefetch       0x0003
+s_mov_b32             m0, s2
+v_interp_p1_f32       v0, v0, attr0.x
+v_interp_p2_f32       v0, v1, attr0.x
+v_cmp_gt_f32          vcc, 0, v0
+                                            ●   This is a conditional move command
+v_cndmask_b32         v0, 1.0, 0, vcc       ●   The i-th bit of the last argument (VCC)
+v_cndmask_b32         v1, 0, 1.0, vcc           controls whether the i-th thread within the
+v_cvt_pkrtz_f16_f32   v0, v1, v0                wavefront should write 1.0 (1) or 0.0 (0) to v0
+v_mov_b32             v1, lit(0x3c000000)
+exp                   mrt0, v0, v0, v1, v1 done compr vm
+s_endpgm
+      layout(location = 0) in float cond;
+      void main() {
+           if (cond < 0.0) outColor = vec4(1,0,0,1);
+           else             outColor = vec4(0,1,0,1);
+      }
+
+s_version             UC_VERSION_GFX 10 | UC_VERSION_W64_BIT
+s_inst_prefetch       0x0003
+s_mov_b32             m 0, s2
+v_interp_p1_f32       v0, v0, attr0.x
+v_interp_p2_f32       v0, v1, attr0.x
+v_cmp_gt_f32          vcc, 0, v0
+v_cndmask_b32         v0, 1.0, 0, vcc
+v_cndmask_b32         v1, 0, 1.0, vcc
+v_cvt_pkrtz_f16_f32   v0, v1, v0
+v_mov_b32             v1, lit(0x3c000000 )
+exp                   mrt 0, v0, v0, v1, v1 done compr vm
+s_endpgm
+layout(binding = 0) uniform block { bool isEnabled; };
+void main() {
+    if (isEnabled) outColor = vec4(1,0,0,1);
+    else           outColor = vec4(0,1,0,1);
+}
+  layout(binding = 0) uniform block { bool isEnabled; };
+  void main() {
+       if (isEnabled) outColor = vec4(1,0,0,1);
+       else              outColor = vec4(0,1,0,1);
+  }
+...
+s_getpc_b64           s[0:1]
+s_mov_b32             s0, s2
+s_load_dwordx4        s[0:3], s[0:1], null
+s_waitcnt             lgkmcnt(0)
+s_buffer_load_dword   s0, s[0:3], null
+s_waitcnt             lgkmcnt(0)
+s_cmp_lg_i32          s0, 0
+s_cselect_b32         s0, 0, 1.0
+s_cselect_b32         s2, 1.0, 0
+v_cvt_pkrtz_f16_f32   v0, s2, s0
+v_mov_b32             v1, lit(0x3c000000)
+...
+  layout(binding = 0) uniform block { bool isEnabled; };
+  void main() {
+       if (isEnabled) outColor = vec4(1,0,0,1);
+       else              outColor = vec4(0,1,0,1);
+  }
+...
+s_getpc_b64           s[0:1]
+s_mov_b32             s0, s2
+s_load_dwordx4        s[0:3], s[0:1], null     Uniform buffer address
+s_waitcnt             lgkmcnt(0)               loading boilerplate (the
+                                               system initializes s2)
+s_buffer_load_dword   s0, s[0:3], null
+s_waitcnt             lgkmcnt(0)
+s_cmp_lg_i32          s0, 0
+s_cselect_b32         s0, 0, 1.0
+s_cselect_b32         s2, 1.0, 0
+v_cvt_pkrtz_f16_f32   v0, s2, s0
+v_mov_b32             v1, lit(0x3c000000)
+...
+  layout(binding = 0) uniform block { bool isEnabled; };
+  void main() {
+       if (isEnabled) outColor = vec4(1,0,0,1);
+       else              outColor = vec4(0,1,0,1);
+  }
+...
+s_getpc_b64           s[0:1]
+s_mov_b32             s0, s2
+s_load_dwordx4        s[0:3], s[0:1], null
+s_waitcnt             lgkmcnt(0)             Loading wave invariant data
+s_buffer_load_dword   s0, s[0:3], null       is a scalar load. Loads are
+s_waitcnt             lgkmcnt(0)             always followed by
+s_cmp_lg_i32          s0, 0
+                                             s_waitcnt commands
+                                             before the use.
+s_cselect_b32         s0, 0, 1.0
+s_cselect_b32         s2, 1.0, 0
+v_cvt_pkrtz_f16_f32   v0, s2, s0
+v_mov_b32             v1, lit(0x3c000000)
+...
+for (int i=0; i < 16; ++i) result += fragInc;
+
+
+
+          layout(location = 3) in float fragInc;
+for (int i=0; i < 16; ++i) result += fragInc;
+
+
+
+
+ v_interp_p1_f32    v0, v0, attr0.x
+ v_interp_p2_f32    v0, v1, attr0.x
+ v_mul_f32          v1, lit(0x41800000), v0
+for (int i=0; i < 16; ++i) result += fragInc;
+
+
+
+
+ v_interp_p1_f32     v0, v0, attr0.x
+ v_interp_p2_f32     v0, v1, attr0.x
+ v_mul_f32           v1, lit(0x41800000), v0
+
+                   0100 0001 1000 0000 0000 0000 0000 0000
+for (int i=0; i < 16; ++i) result += fragInc;
+
+
+
+
+ v_interp_p1_f32     v0, v0, attr0.x
+ v_interp_p2_f32     v0, v1, attr0.x
+ v_mul_f32           v1, lit(0x41800000), v0
+
+                   0100 0001 1000 0000 0000 0000 0000 0000
+for (int i=0; i < 16; ++i) result += fragInc;
+
+
+
+
+ v_interp_p1_f32     v0, v0, attr0.x
+ v_interp_p2_f32     v0, v1, attr0.x
+ v_mul_f32           v1, lit(0x41800000), v0
+
+                   0100 0001 1000 0000 0000 0000 0000 0000
+
+
+                       131
+for (int i=0; i < 16; ++i) result += fragInc;
+
+
+
+
+ v_interp_p1_f32     v0, v0, attr0.x
+ v_interp_p2_f32     v0, v1, attr0.x
+ v_mul_f32           v1, lit(0x41800000), v0
+
+                   0100 0001 1000 0000 0000 0000 0000 0000
+
+
+                      131
+                   131-127=4
+              127: binary32 bias
+for (int i=0; i < 16; ++i) result += fragInc;
+
+
+
+
+ v_interp_p1_f32     v0, v0, attr0.x
+ v_interp_p2_f32     v0, v1, attr0.x
+ v_mul_f32           v1, lit(0x41800000), v0
+
+                   0100 0001 1000 0000 0000 0000 0000 0000
+
+
+                                  16.0f
+for (int i=0; i < 16; ++i) result += fragInc;
+
+
+
+
+ v_interp_p1_f32     v0, v0, attr0.x
+ v_interp_p2_f32     v0, v1, attr0.x
+ v_mul_f32           v1, lit(0x41800000), v0
+
+                   0100 0001 1000 0000 0000 0000 0000 0000
+
+
+                                  16.0f
+for (int i=0; i < iterCount; ++i) result += fragInc;
+
+
+
+ layout(binding = 0) uniform block {
+      int   iterCount;
+ };
+for (int i=0; i < iterCount; ++i) result += fragInc;
+          s_movk_i32            s2, 0x0000
+          s_cmp_gt_i32          s0, s2
+          s_nop                 0x0000
+          s_nop                 0x0000
+          s_nop                 0x0000
+          s_nop                 0x0000
+          s_nop                 0x0000
+          s_nop                 0x0000
+          s_cbranch_scc0        label_006C
+       label_005C:
+          v_add_f32             v1, v1, v0
+          s_add_u32             s2, s2, 1
+          s_cmp_gt_i32          s0, s2
+          s_cbranch_scc1        label_005C
+       label_006C:
+          v_cvt_pkrtz_f16_f32   v1, v1, v1
+           exp                  mrt0, v1, v1, v1, v1 done compr vm
+for (int i=0; i < iterCount; ++i) result += fragInc;
+           s_movk_i32            s2, 0x0000
+          s_cmp_gt_i32           s0, s2
+           s_nop                 0x0000       s_buffer_load_dword s0, s[0:3],
+           s_nop                 0x0000                               0x000004
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_cbranch_scc0        label_006C
+       label_005C:
+           v_add_f32             v1, v1, v0
+           s_add_u32             s2, s2, 1
+           s_cmp_gt_i32          s0, s2
+           s_cbranch_scc1        label_005C
+       label_006C:
+           v_cvt_pkrtz_f16_f32   v1, v1, v1
+           exp                   mrt0, v1, v1, v1, v1 done compr vm
+for (int i=0; i < iterCount; ++i) result += fragInc;
+           s_movk_i32            s2, 0x0000
+          s_cmp_gt_i32           s0, s2
+                                                 SCC = (S0 > S1)
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+          s_cbranch_scc0         label_006C
+       label_005C:
+           v_add_f32             v1, v1, v0
+           s_add_u32             s2, s2, 1
+           s_cmp_gt_i32          s0, s2
+           s_cbranch_scc1        label_005C
+       label_006C:
+           v_cvt_pkrtz_f16_f32   v1, v1, v1
+           exp                   mrt0, v1, v1, v1, v1 done compr vm
+for (int i=0; i < iterCount; ++i) result += fragInc;
+           s_movk_i32            s2, 0x0000
+          s_cmp_gt_i32           s0, s2
+                                                 SCC = (S0 > S1)
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+          s_cbranch_scc0         label_006C
+                                                    If SCC == 0: jump to label
+       label_005C:
+           v_add_f32             v1, v1, v0
+           s_add_u32             s2, s2, 1
+           s_cmp_gt_i32          s0, s2
+           s_cbranch_scc1        label_005C
+       label_006C:
+           v_cvt_pkrtz_f16_f32   v1, v1, v1
+           exp                   mrt0, v1, v1, v1, v1 done compr vm
+for (int i=0; i < iterCount; ++i) result += fragInc;
+           s_movk_i32            s2, 0x0000
+          s_cmp_gt_i32           s0, s2
+                                                 SCC = (S0 > S1)
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+          s_cbranch_scc0         label_006C
+                                                    If SCC == 0: jump to label
+       label_005C:
+           v_add_f32             v1, v1, v0
+           s_add_u32             s2, s2, 1
+           s_cmp_gt_i32          s0, s2
+           s_cbranch_scc1        label_005C
+                                                    This is what happens after we
+       label_006C:
+                                                    exit the loop.
+           v_cvt_pkrtz_f16_f32   v1, v1, v1
+           exp                   mrt0, v1, v1, v1, v1 done compr vm
+for (int i=0; i < iterCount; ++i) result += fragInc;
+           s_movk_i32            s2, 0x0000
+           s_cmp_gt_i32          s0, s2
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_cbranch_scc0        label_006C
+       label_005C:
+          v_add_f32              v1, v1, v0
+          s_add_u32              s2, s2, 1
+          s_cmp_gt_i32           s0, s2
+          s_cbranch_scc1         label_005C
+       label_006C:
+           v_cvt_pkrtz_f16_f32   v1, v1, v1
+           exp                   mrt0, v1, v1, v1, v1 done compr vm
+for (int i=0; i < iterCount; ++i) result += fragInc;
+           s_movk_i32            s2, 0x0000
+           s_cmp_gt_i32          s0, s2
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_cbranch_scc0        label_006C
+       label_005C :
+           v_add_f32             v1, v1, v0
+           s_add_u32             s2, s2, 1
+           s_cmp_gt_i32          s0, s2
+           s_cbranch_scc1        label_005C
+       label_006C:
+           v_cvt_pkrtz_f16_f32   v1, v1, v1
+           exp                   mrt0, v1, v1, v1, v1 done compr vm
+for (int i=0; i < iterCount; ++i) result += fragInc;
+           s_movk_i32            s2, 0x0000
+           s_cmp_gt_i32          s0, s2
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_cbranch_scc0        label_006C
+       label_005C :
+           v_add_f32             v1, v1, v0
+           s_add_u32             s2, s2, 1
+           s_cmp_gt_i32          s0, s2
+           s_cbranch_scc1        label_005C
+       label_006C:
+           v_cvt_pkrtz_f16_f32   v1, v1, v1
+           exp                   mrt0, v1, v1, v1, v1 done compr vm
+for (int i=0; i < iterCount; ++i) result += fragInc;
+           s_movk_i32            s2, 0x0000
+           s_cmp_gt_i32          s0, s2
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_cbranch_scc0        label_006C
+       label_005C:
+           v_add_f32             v1, v1, v0
+           s_add_u32             s2, s2, 1    s_buffer_load_dword s0, s[0:3],
+          s_cmp_gt_i32           s0, s2                               0x000004
+          s_cbranch_scc1         label_005C
+       label_006C:
+           v_cvt_pkrtz_f16_f32   v1, v1, v1
+           exp                   mrt0, v1, v1, v1, v1 done compr vm
+for (int i=0; i < iterCount; ++i) result += fragInc;
+           s_movk_i32            s2, 0x0000
+           s_cmp_gt_i32          s0, s2
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_nop                 0x0000
+           s_cbranch_scc0        label_006C
+       label_005C:
+           v_add_f32             v1, v1, v0         Jump to label if SCC != 0. Every
+                                                    thread will stay in the loop
+           s_add_u32             s2, s2, 1
+                                                    together.
+          s_cmp_gt_i32           s0, s2
+          s_cbranch_scc1         label_005C
+       label_006C:
+           v_cvt_pkrtz_f16_f32   v1, v1, v1
+           exp                   mrt0, v1, v1, v1, v1 done compr vm
+for (int i=0; i < fragFloat; ++i) result += fragInc;
+
+
+
+  layout(location = 4) in float fragFloat;
+for (int i=0; i < fragFloat; ++i) result += fragInc;
+          v_mov_b32        v1, 0
+          s_mov_b64        s[0:1], exec
+          s_mov_b64        s[2:3], exec
+       label_0040:
+          v_cvt_f32_i32    v3, s4
+          v_cmp_gt_f32     vcc, v2, v3
+          s_mov_b64        s[6:7], exec
+          s_andn2_b64      exec, s[6:7], vcc
+          s_andn2_b64      s[2:3], s[2:3], exec
+          s_cbranch_scc0   label_006C
+          s_andn2_b64      exec, s[6:7], exec
+          s_and_b64        exec, s[6:7], s[2:3]
+          v_add_f32        v1, v1, v0
+          s_add_u32        s4, s4, 1
+          s_branch         label_0040
+       label_006C:
+          s_mov_b64        exec, s[0:1]
+for (int i=0; i < fragFloat; ++i) result += fragInc;
+           v_mov_b32        v1, 0                ●   Exec[i] bit is 1 iff the i-th
+          s_mov_b64         s[0:1], exec             thread is active within the
+           s_mov_b64        s[2:3], exec             wavefront.
+                                                 ●   We make a backup of the
+       label_0040:
+                                                     exec flag into s[0:1]
+           v_cvt_f32_i32    v3, s4               ●   Two SGPRs because this
+           v_cmp_gt_f32     vcc, v2, v3              is a fragment shader that
+           s_mov_b64        s[6:7], exec             is wave64 by default
+           s_andn2_b64      exec, s[6:7], vcc
+           s_andn2_b64      s[2:3], s[2:3], exec
+           s_cbranch_scc0   label_006C
+           s_andn2_b64      exec, s[6:7], exec
+           s_and_b64        exec, s[6:7], s[2:3]
+           v_add_f32        v1, v1, v0
+           s_add_u32        s4, s4, 1
+           s_branch         label_0040
+                                                      We reactivate all the threads
+       label_006C:
+                                                      that were active before the loop
+          s_mov_b64         exec, s[0:1]
+for (int i=0; i < fragFloat; ++i) result += fragInc;
+           v_mov_b32        v1, 0
+           s_mov_b64        s[0:1], exec
+                                                 These SGPRs will track which
+          s_mov_b64         s[2:3], exec
+                                                 threads of the wavefront are still
+       label_0040:                               within the loop.
+           v_cvt_f32_i32    v3, s4
+           v_cmp_gt_f32     vcc, v2, v3
+           s_mov_b64        s[6:7], exec
+           s_andn2_b64      exec, s[6:7], vcc
+           s_andn2_b64      s[2:3], s[2:3], exec
+           s_cbranch_scc0   label_006C
+           s_andn2_b64      exec, s[6:7], exec
+           s_and_b64        exec, s[6:7], s[2:3]
+           v_add_f32        v1, v1, v0
+           s_add_u32        s4, s4, 1
+           s_branch         label_0040
+       label_006C:
+           s_mov_b64        exec, s[0:1]
+for (int i=0; i < fragFloat; ++i) result += fragInc;
+           v_mov_b32        v1, 0
+           s_mov_b64        s[0:1], exec         ●   Conversion because fragFloat is float but
+           s_mov_b64        s[2:3], exec             i is integer
+                                                 ●   SGPR s4 starts from 0 (==i)
+       label_0040:
+                                                 ●   v2 = fragFloat (interpolated
+          v_cvt_f32_i32     v3, s4                   attribute)
+          v_cmp_gt_f32      vcc, v2, v3          ●   Then do floating point comparison and
+           s_mov_b64        s[6:7], exec             write the per-thread result of greater-than
+                                                     into vcc (fragFloat > i )
+           s_andn2_b64      exec, s[6:7], vcc
+           s_andn2_b64      s[2:3], s[2:3], exec
+           s_cbranch_scc0   label_006C
+           s_andn2_b64      exec, s[6:7], exec
+           s_and_b64        exec, s[6:7], s[2:3]
+           v_add_f32        v1, v1, v0
+           s_add_u32        s4, s4, 1
+           s_branch         label_0040
+       label_006C:
+           s_mov_b64        exec, s[0:1]
+for (int i=0; i < fragFloat; ++i) result += fragInc;
+           v_mov_b32        v1, 0
+           s_mov_b64        s[0:1], exec    Copy this iteration’s starting exec
+                                            flag into s[6:7].
+           s_mov_b64        s[2:3], exec
+       label_0040:
+           v_cvt_f32_i32    v3, s4
+           v_cmp_gt_f32     vcc, v2, v3               EXEC = EXEC & ~VCC
+                                                      SCC = (EXEC != 0)
+          s_mov_b64         s[6:7], exec
+          s_andn2_b64       exec, s[6:7], vcc              S[2:3] = S[2:3] &
+           s_andn2_b64      s[2:3], s[2:3], exec           ~EXEC
+           s_cbranch_scc0   label_006C                     SCC = (S[2:3] != 0)
+           s_andn2_b64      exec, s[6:7], exec
+           s_and_b64        exec, s[6:7], s[2:3]
+           v_add_f32        v1, v1, v0
+           s_add_u32        s4, s4, 1
+           s_branch         label_0040
+       label_006C:
+           s_mov_b64        exec, s[0:1]
+for (int i=0; i < fragFloat; ++i) result += fragInc;
+           v_mov_b32       v1, 0
+           s_mov_b64       s[0:1], exec
+           s_mov_b64       s[2:3], exec
+       label_0040:
+           v_cvt_f32_i32   v3, s4
+           v_cmp_gt_f32    vcc, v2, v3
+           s_mov_b64       s[6:7], exec
+           s_andn2_b64     exec, s[6:7], vcc
+           s_andn2_b64     s[2:3], s[2:3], exec
+          s_cbranch_scc0   label_006C             No threads remain in the loop: jump
+                                                  to the next instruction after the loop.
+           s_andn2_b64     exec, s[6:7], exec
+           s_and_b64       exec, s[6:7], s[2:3]
+           v_add_f32       v1, v1, v0
+           s_add_u32       s4, s4, 1
+           s_branch        label_0040
+       label_006C:
+          s_mov_b64        exec, s[0:1]
+for (int i=0; i < fragFloat; ++i) result += fragInc;
+           v_mov_b32        v1, 0
+           s_mov_b64        s[0:1], exec
+           s_mov_b64        s[2:3], exec
+       label_0040:
+           v_cvt_f32_i32    v3, s4
+           v_cmp_gt_f32     vcc, v2, v3
+           s_mov_b64        s[6:7], exec
+           s_andn2_b64      exec, s[6:7], vcc
+           s_andn2_b64      s[2:3], s[2:3], exec
+           s_cbranch_scc0   label_006C
+          s_andn2_b64       exec, s[6:7], exec
+          s_and_b64         exec, s[6:7], s[2:3]
+           v_add_f32        v1, v1, v0
+           s_add_u32        s4, s4, 1
+           s_branch         label_0040
+       label_006C:
+           s_mov_b64        exec, s[0:1]
+for (int i=0; i < fragFloat; ++i) result += fragInc;
+           v_mov_b32        v1, 0
+           s_mov_b64        s[0:1], exec
+           s_mov_b64        s[2:3], exec
+       label_0040:
+           v_cvt_f32_i32    v3, s4
+           v_cmp_gt_f32     vcc, v2, v3
+           s_mov_b64        s[6:7], exec
+           s_andn2_b64      exec, s[6:7], vcc
+           s_andn2_b64      s[2:3], s[2:3], exec
+           s_cbranch_scc0   label_006C
+           s_andn2_b64      exec, s[6:7], exec
+           s_and_b64        exec, s[6:7], s[2:3]
+                                                   result += fragInc
+          v_add_f32         v1, v1, v0
+          s_add_u32         s4, s4, 1
+           s_branch         label_0040
+       label_006C:
+           s_mov_b64        exec, s[0:1]
+for (int i=0; i < fragFloat; ++i) result += fragInc;
+           v_mov_b32        v1, 0
+           s_mov_b64        s[0:1], exec
+           s_mov_b64        s[2:3], exec
+       label_0040:
+           v_cvt_f32_i32    v3, s4
+           v_cmp_gt_f32     vcc, v2, v3
+           s_mov_b64        s[6:7], exec
+           s_andn2_b64      exec, s[6:7], vcc
+           s_andn2_b64      s[2:3], s[2:3], exec
+           s_cbranch_scc0   label_006C
+           s_andn2_b64      exec, s[6:7], exec
+           s_and_b64        exec, s[6:7], s[2:3]
+                                                   result += fragInc
+          v_add_f32         v1, v1, v0
+          s_add_u32         s4, s4, 1
+           s_branch         label_0040
+                                           i++
+       label_006C:
+           s_mov_b64        exec, s[0:1]
+for (int i=0; i < fragFloat; ++i) result += fragInc;
+           v_mov_b32        v1, 0
+           s_mov_b64        s[0:1], exec
+           s_mov_b64        s[2:3], exec
+       label_0040:
+           v_cvt_f32_i32    v3, s4
+           v_cmp_gt_f32     vcc, v2, v3
+           s_mov_b64        s[6:7], exec
+           s_andn2_b64      exec, s[6:7], vcc
+           s_andn2_b64      s[2:3], s[2:3], exec
+           s_cbranch_scc0   label_006C
+           s_andn2_b64      exec, s[6:7], exec
+           s_and_b64        exec, s[6:7], s[2:3]
+           v_add_f32        v1, v1, v0
+                                                   GOTO label_0040
+           s_add_u32        s4, s4, 1              (Actually, short jump)
+          s_branch          label_0040
+       label_006C:
+           s_mov_b64        exec, s[0:1]
+for (int i=0; i < fragFloat; ++i) result += fragInc;
+          v_mov_b32        v1, 0
+          s_mov_b64        s[0:1], exec
+          s_mov_b64        s[2:3], exec
+       label_0040:
+          v_cvt_f32_i32    v3, s4
+          v_cmp_gt_f32     vcc, v2, v3
+          s_mov_b64        s[6:7], exec
+          s_andn2_b64      exec, s[6:7], vcc
+          s_andn2_b64      s[2:3], s[2:3], exec
+          s_cbranch_scc0   label_006C
+          s_andn2_b64      exec, s[6:7], exec
+          s_and_b64        exec, s[6:7], s[2:3]
+          v_add_f32        v1, v1, v0
+          s_add_u32        s4, s4, 1
+          s_branch         label_0040
+       label_006C:
+          s_mov_b64        exec, s[0:1]
+...
+float di = smoothstep( a, b, t );
+            ...
+            float di = smoothstep( a, b, t );
+v_subrev_f32            v3, v2, v3
+v_subrev_f32            v0, v2, v0
+v_rcp_f32               v3, v3
+v_mul_f32               v1, v0, v3 clamp
+v_mul_f32               v2, v1, v1
+v_fmaak_f32             v0, -2.0, v1, lit(0x40400000)
+v_mul_f32               v1, v2, v0
+            layout(location = 0) in   float a;
+            layout(location = 1) in   float b;
+            layout(location = 2) in   float t;
+            ...
+            float di = smoothstep( a, b, t );
+s_inst_prefetch   0x0003
+s_mov_b32         m0, s3
+v_interp_p1_f32   v2, v0, attr0.x
+v_interp_p1_f32   v3, v0, attr0.y
+v_interp_p1_f32   v0, v0, attr0.z
+v_interp_p2_f32   v2, v1, attr0.x
+v_interp_p2_f32   v3, v1, attr0.y
+v_interp_p2_f32   v0, v1, attr0.z
+      layout(binding=0) uniform CB { float a, b, t;   };
+                             ...
+              float di = smoothstep( a, b, t );
+
+
+
+
+s_getpc_b64             s[0:1]
+s_mov_b32               s0, s2
+s_load_dwordx4          s[0:3], s[0:1], null
+s_waitcnt               lgkmcnt(0)
+s_buffer_load_dwordx2   s[4:5], s[0:3], 0x000010
+s_buffer_load_dword     s0, s[0:3], 0x000018
+s_waitcnt               lgkmcnt(0)
+...
+      layout(binding=0) uniform CB { float a, b, t;   };
+                             ...
+              float di = smoothstep( a, b, t );
+
+
+
+
+s_getpc_b64             s[0:1]
+s_mov_b32               s0, s2
+s_load_dwordx4          s[0:3], s[0:1], null
+s_waitcnt               lgkmcnt(0)
+
+
+                                                      😰
+s_buffer_load_dwordx2   s[4:5], s[0:3], 0x000010
+s_buffer_load_dword     s0, s[0:3], 0x000018
+s_waitcnt               lgkmcnt(0)
+...
+layout(binding=0) uniform CB { vec3 abt;   };
+                     ...
+float di = smoothstep( abt.x, abt.y, abt.z );
+       layout(binding=0) uniform CB { vec3 abt;    };
+                            ...
+      float di = smoothstep( abt.x, abt.y, abt.z );
+
+
+
+
+s_getpc_b64             s[0:1]
+s_mov_b32               s0, s2
+s_load_dwordx4          s[0:3], s[0:1], null
+s_waitcnt               lgkmcnt(0)
+
+
+                                                    😢
+s_buffer_load_dwordx2   s[4:5], s[0:3], 0x000010
+s_buffer_load_dword     s0, s[0:3], 0x000018
+s_waitcnt               lgkmcnt(0)
+...
+layout(binding=0) uniform CB { vec4 abt;   };
+                     ...
+float di = smoothstep( abt.x, abt.y, abt.z );
+       layout(binding=0) uniform CB { vec4 abt;    };
+                            ...
+      float di = smoothstep( abt.x, abt.y, abt.z );
+
+
+
+
+s_getpc_b64             s[0:1]
+s_mov_b32               s0, s2
+s_load_dwordx4          s[0:3], s[0:1], null
+s_waitcnt               lgkmcnt(0)
+
+
+                                                    😭
+s_buffer_load_dwordx2   s[4:5], s[0:3], 0x000010
+s_buffer_load_dword     s0, s[0:3], 0x000018
+s_waitcnt               lgkmcnt(0)
+...
+layout(binding=0) uniform CB { uvec3 uabt;   };
+                      …
+uvec3 packedData = uabt;
+vec3   fabt = uintBitsToFloat(packedData.xyz);
+float di = smoothstep(fabt.x, fabt.y, fabt.z);
+      layout(binding=0) uniform CB { uvec3 uabt;   };
+                             …
+       uvec3 packedData = uabt;
+       vec3   fabt = uintBitsToFloat(packedData.xyz);
+       float di = smoothstep(fabt.x, fabt.y, fabt.z);
+
+
+s_getpc_b64             s[0:1]
+s_mov_b32               s0, s2
+s_load_dwordx4          s[0:3], s[0:1], null
+s_waitcnt               lgkmcnt(0)
+
+
+                                                   😇
+s_buffer_load_dwordx4   s[0:3], s[0:3], 0x000020
+s_waitcnt               lgkmcnt(0)
+...
+       layout(binding=0) uniform CB { vec3 abt;    };
+                             …
+       vec3   fabt = abt;
+       float di = smoothstep(fabt.x, fabt.y, fabt.z);
+
+
+
+
+s_getpc_b64             s[0:1]
+s_mov_b32               s0, s2
+s_load_dwordx4          s[0:3], s[0:1], null
+s_waitcnt               lgkmcnt(0)
+
+
+                                                    😌
+s_buffer_load_dwordx4   s[0:3], s[0:3], 0x000020
+s_waitcnt               lgkmcnt(0)
+...
+      layout(binding=0) uniform CB { uvec3 uabt;   };
+                             …
+       uvec3 packedData = uabt;
+       vec3   fabt = uintBitsToFloat(packedData.xyz);
+       float di = smoothstep(fabt.x, fabt.y, fabt.z);
+
+
+s_getpc_b64             s[0:1]
+s_mov_b32               s0, s2
+s_load_dwordx4          s[0:3], s[0:1], null
+s_waitcnt               lgkmcnt(0)
+
+
+                                                   🤯
+s_buffer_load_dwordx4   s[0:3], s[0:3], 0x000020
+s_waitcnt               lgkmcnt(0)
+...
+Constant folding
+  ●   Always compute these things on the CPU and push it into a constant
+      buffer/uniform object buffer
+  ●   It makes no sense to compute something 2073600 times per frame instead
+      of once - even if that once has to be on the CPU
+  ●   Similarly, avoid using texture dimension query semantics at all costs. Those
+      are expensive operations. You are setting the textures so you might as well
+      send in their dimensions as well and spare yourself from taxing the L0
+      cache
+Constant folding with FMA in mind
+  ●   You often map data x from 0,1] to [a, b]
+  ●   The canonical transform is x*(b-a) + a
+  ●   This could be a FMA
+  ●   So donʼt store a and b in the uniform
+      buffer, store (b-a) and a instead!
+Constant folding with FMA in mind
+  ●   Similarly, mapping x from [a,b] to [c, d] is mathematically
+      (x-a)/(b-a) * (d-c) + c
+  ●   Again, this could be a single FMA
+  ●   The math is a bit more lengthy here:
+      x*(d-c)/(b-a) - a*(d-c)/(b-a) + c
+  ●   But the end result is that put these into your uniform buffer and
+      follow with an FMA (d-c)/(b-a), - a*(d-c)/(b-a) + c
+#extension GL_EXT_shader_explicit_arithmetic_types: require
+layout(binding = 0) uniform CB { f16mat4x4 matrix; };
+...
+f16vec4 nW = matrix * fragData;
+#extension GL_EXT_shader_explicit_arithmetic_types: require
+layout(binding = 0) uniform CB { f16mat4x4 matrix; };
+...
+f16vec4 nW = matrix * fragData;
+          ...
+          s_buffer_load_dwordx2   s[4:5], s[0:3], 0x000060
+          s_buffer_load_dwordx2   s[6:7], s[0:3], 0x000070
+          s_buffer_load_dwordx2   s[8:9], s[0:3], 0x000080
+          s_buffer_load_dwordx2   s[0:1], s[0:3], 0x000090
+          ...
+          v_pk_mul_f16            v0, s2, sel_lo(v2)
+          v_pk_mul_f16            v1, s3, sel_lo(v2)
+          v_pk_fma_f16            v0, s4, sel_hi(v2), v0
+          v_pk_fma_f16            v1, s5, sel_hi(v2), v1
+          v_pk_fma_f16            v0, s6, sel_lo(v3), v0
+          v_pk_fma_f16            v1, s7, sel_lo(v3), v1
+          v_pk_fma_f16            v0, s0, sel_hi(v3), v0
+          v_pk_fma_f16            v3, s1, sel_hi(v3), v1
+          ...
+#extension GL_EXT_shader_explicit_arithmetic_types: require
+layout(binding = 0) uniform CB { f16mat4x4 matrix; };
+...
+f16vec4 nW = matrix * fragData;
+          ...
+          s_buffer_load_dwordx2   s[4:5], s[0:3], 0x000060
+          s_buffer_load_dwordx2   s[6:7], s[0:3], 0x000070
+          s_buffer_load_dwordx2   s[8:9], s[0:3], 0x000080
+          s_buffer_load_dwordx2   s[0:1], s[0:3], 0x000090
+          ...
+          v_pk_mul_f16            v0, s2, sel_lo(v2)
+          v_pk_mul_f16            v1, s3, sel_lo(v2)
+          v_pk_fma_f16            v0, s4, sel_hi(v2), v0
+          v_pk_fma_f16            v1, s5, sel_hi(v2), v1
+          v_pk_fma_f16
+          v_pk_fma_f16
+          v_pk_fma_f16
+                                  v0, s6, sel_lo(v3), v0
+                                  v1, s7, sel_lo(v3), v1
+                                  v0, s0, sel_hi(v3), v0
+                                                              😍
+          v_pk_fma_f16            v3, s1, sel_hi(v3), v1
+          ...
+layout(binding = 0) uniform CB { f16mat4x4 matrix; };
+...
+f16vec4 nW = matrix * fragData;
+
+
+          ...
+          s_buffer_load_dwordx2   s[4:5], s[0:3], 0x000060
+          s_buffer_load_dwordx2   s[6:7], s[0:3], 0x000070
+          s_buffer_load_dwordx2   s[8:9], s[0:3], 0x000080
+          s_buffer_load_dwordx2   s[0:1], s[0:3], 0x000090
+          ...
+          v_pk_mul_f16            v0, s2, sel_lo(v2)
+          v_pk_mul_f16            v1, s3, sel_lo(v2)
+          v_pk_fma_f16            v0, s4, sel_hi(v2), v0
+          v_pk_fma_f16            v1, s5, sel_hi(v2), v1
+          v_pk_fma_f16            v0, s6, sel_lo(v3), v0
+          v_pk_fma_f16            v1, s7, sel_lo(v3), v1
+          v_pk_fma_f16            v0, s0, sel_hi(v3), v0
+          v_pk_fma_f16            v3, s1, sel_hi(v3), v1
+          ...
+layout(binding = 0) uniform CB { f16mat4x4 matrix; };
+...
+f16vec4 nW = matrix * fragData;
+
+
+
+
+          ...
+          s_buffer_load_dwordx2   s[4:5], s[0:3], 0x000060
+          s_buffer_load_dwordx2   s[6:7], s[0:3], 0x000070
+          s_buffer_load_dwordx2   s[8:9], s[0:3], 0x000080
+          s_buffer_load_dwordx2   s[0:1], s[0:3], 0x000090
+          ...
+
+
+
+                                                             😡
+layout(binding = 0) uniform CB { f16mat4x4 matrix; };
+...
+f16mat4x4    localMatrix = matrix;
+f16vec4 nW = localMatrix * fragData;
+layout(binding = 0) uniform CB { f16mat4x4 matrix; };
+...
+f16mat4x4     localMatrix = matrix;
+f16vec4 nW = localMatrix * fragData;
+
+
+
+
+            ...
+            s_buffer_load_dwordx2   s[4:5], s[0:3], 0x000060
+            s_buffer_load_dwordx2   s[6:7], s[0:3], 0x000070
+            s_buffer_load_dwordx2   s[8:9], s[0:3], 0x000080
+            s_buffer_load_dwordx2   s[0:1], s[0:3], 0x000090
+            ...
+
+
+
+                                                               🤮
+layout(binding = 0) uniform CB { uint data[8]; };
+...
+f16mat4x4 localMatrix = {
+        f16vec4(unpack16(data[0]), unpack16(data[1])),
+        f16vec4(unpack16(data[2]), unpack16(data[3])),
+        f16vec4(unpack16(data[4]), unpack16(data[5])),
+        f16vec4(unpack16(data[6]), unpack16(data[7])) };
+f16vec4 nW = localMatrix * fragData;
+layout(binding = 0) uniform CB { uint data[8]; };
+...
+f16mat4x4 localMatrix = {
+        f16vec4(unpack16(data[0]), unpack16(data[1])),
+        f16vec4(unpack16(data[2]), unpack16(data[3])),
+        f16vec4(unpack16(data[4]), unpack16(data[5])),
+        f16vec4(unpack16(data[6]), unpack16(data[7])) };
+f16vec4 nW = localMatrix * fragData;
+
+
+
+
+           ...
+           s_buffer_load_dwordx4   s[4:7], s[0:3], null
+           s_buffer_load_dwordx4
+           ...
+                                   s[0:3], s[0:3], 0x000010
+
+                                                              😵
+layout(binding = 0) uniform CB { uvec4 uMatrix[2]; };
+…
+uint data[] = { uMatrix[0].x, uMatrix[0].y, uMatrix[0].z, uMatrix[0].w,
+                 uMatrix[1].x, uMatrix[1].y, uMatrix[1].z, uMatrix[1].w };
+f16mat4x4 localMatrix = {
+        f16vec4(unpack16(data[0]), unpack16(data[1])),
+        f16vec4(unpack16(data[2]), unpack16(data[3])),
+        f16vec4(unpack16(data[4]), unpack16(data[5])),
+        f16vec4(unpack16(data[6]), unpack16(data[7])) };
+f16vec4 nW = matrix * fragData;
+layout(binding = 0) uniform CB { uvec4 uMatrix[2]; };
+…
+uint data[] = { uMatrix[0].x, uMatrix[0].y, uMatrix[0].z, uMatrix[0].w,
+                 uMatrix[1].x, uMatrix[1].y, uMatrix[1].z, uMatrix[1].w };
+f16mat4x4 localMatrix = {
+        f16vec4(unpack16(data[0]), unpack16(data[1])),
+        f16vec4(unpack16(data[2]), unpack16(data[3])),
+        f16vec4(unpack16(data[4]), unpack16(data[5])),
+        f16vec4(unpack16(data[6]), unpack16(data[7])) };
+f16vec4 nW = matrix * fragData;
+
+
+           ...
+           s_buffer_load_dwordx8   s[0:7], s[0:3], null
+           ...
+layout(binding = 0) uniform CB { uvec4 uMatrix[2]; };
+…
+uint data[] = { uMatrix[0].x, uMatrix[0].y, uMatrix[0].z, uMatrix[0].w,
+                 uMatrix[1].x, uMatrix[1].y, uMatrix[1].z, uMatrix[1].w };
+f16mat4x4 localMatrix = {
+        f16vec4(unpack16(data[0]), unpack16(data[1])),
+        f16vec4(unpack16(data[2]), unpack16(data[3])),
+        f16vec4(unpack16(data[4]), unpack16(data[5])),
+        f16vec4(unpack16(data[6]), unpack16(data[7])) };
+f16vec4 nW = matrix * fragData;
+
+
+           ...
+           s_buffer_load_dwordx8   s[0:7], s[0:3], null
+           ...
+    AMD resources
+
+●   RDNA whitepaper:
+    https://www.amd.com/system/files/documents/rdna-whitepaper.pdf
+●   RDNA GPU ISA https://gpuopen.com/rdna2-isa-available/
+●   RGA https://gpuopen.com/rga/
+Extra literature
+   ●   https://interplayoflight.wordpress.com/20
+       22/01/22/shader-tips-and-tricks/
+   ●   Online compiler explorer:
+       https://godbolt.org/z/oqEf6sWs6
+    AMD resources
+
+●   RDNA whitepaper:
+    https://www.amd.com/system/files/documents/rdna-whitepaper.pdf
+●   RDNA GPU ISA https://gpuopen.com/rdna2-isa-available/
+●   RGA https://gpuopen.com/rga/
+
+
+
+    Q/A?              ��
+layout(std430, binding = 0) buffer in1   { float in1[]; };
+layout(std430, binding = 1) buffer in2   { float in2[]; };
+
+
+layout(std430, binding = 2) buffer out1 { float outData[]; };
+
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    outData[index] = in1[index] + in2[index];
+}
+layout(std430, binding = 0) buffer in1   { float in1[]; };
+layout(std430, binding = 1) buffer in2   { float in2[]; };
+
+
+layout(std430, binding = 2) buffer out1 { float outData[]; };
+
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    outData[index] = in1[index] + in2[index];                s_inst_prefetch      0x0003
+}                                                            s_getpc_b64          s[0:1]
+                                                             s_mov_b32            s0, s2
+                                                             s_load_dwordx4       s[4:7], s[0:1], null
+                                                             s_load_dwordx4       s[8:11], s[0:1], 0x000020
+                                                             s_load_dwordx4       s[12:15], s[0:1], 0x000040
+                                                             s_and_b32            s0, s3, lit(0x00ffffff)
+                                                             s_lshl_b32           s0, s0, 2
+                                                             v_mov_b32            v0, s0
+                                                             s_waitcnt            lgkmcnt(0)
+                                                             buffer_load_dword    v1, v0, s[4:7], 0 offen
+                                                             buffer_load_dword    v2, v0, s[8:11], 0 offen
+                                                             s_waitcnt            vmcnt(0)
+                                                             v_add_f32            v1, v1, v2
+                                                             buffer_store_dword   v1, v0, s[12:15], 0 offen glc
+layout(std430, binding = 0) buffer in1           { float in1[]; };
+layout(std430, binding = 1) buffer in2           { float in2[]; };
+
+
+layout(std430, binding = 2) buffer out1 { float outData[]; };
+
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    outData[index] = in1[index] + in2[index];                        s_inst_prefetch      0x0003
+}                                                                    s_getpc_b64          s[0:1]
+                                                                     s_mov_b32            s0, s2
+     SGPR       #SGPR                     Name
+                                                                     s_load_dwordx4       s[4:7], s[0:1], null
+                                                                     s_load_dwordx4       s[8:11], s[0:1], 0x000020
+            0           16 User data registers                       s_load_dwordx4       s[12:15], s[0:1], 0x000040
+    then                 1 threadgroup_id0                           s_and_b32            s0, s3, lit(0x00ffffff)
+                                                                     s_lshl_b32           s0, s0, 2
+    then                 1 threadgroup_id1
+                                                                     v_mov_b32            v0, s0
+    then                 1 threadgroup_id2
+                                                                     s_waitcnt            lgkmcnt(0)
+                          {first_wave, 6’h00,
+                                                                     buffer_load_dword    v1, v0, s[4:7], 0 offen
+                          wave_id_in_group[4:0], 2’h0,
+                                                                     buffer_load_dword    v2, v0, s[8:11], 0 offen
+                          ordered_append_term[11:0],
+                                                                     s_waitcnt            vmcnt(0)
+    then                  threadgroup_size_in_waves[5:0]}
+                                                                     v_add_f32            v1, v1, v2
+    then                  Scratch Offset in bytes
+                                                                     buffer_store_dword   v1, v0, s[12:15], 0 offen glc
+layout(std430, binding = 0) buffer in1          { float in1[]; };
+layout(std430, binding = 1) buffer in2          { float in2[]; };
+
+
+layout(std430, binding = 2) buffer out1 { float outData[]; };
+
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    outData[index] = in1[index] + in2[index];                       s_inst_prefetch      0x0003
+}                                                                   s_getpc_b64          s[0:1]
+                                                                    s_mov_b32            s0, s2
+                                                                    s_load_dwordx4       s[4:7], s[0:1], null
+                                                                    s_load_dwordx4       s[8:11], s[0:1], 0x000020
+      VGPR        #VGPR                  Name                       s_load_dwordx4       s[12:15], s[0:1], 0x000040
+              0           1 Work-Item Id X                          s_and_b32            s0, s3, lit(0x00ffffff)
+      then                1 Work-Item Id Y                          s_lshl_b32           s0, s0, 2
+                                                                    v_mov_b32            v0, s0
+      then                1 Work-Item Id Z
+                                                                    s_waitcnt            lgkmcnt(0)
+                                                                    buffer_load_dword    v1, v0, s[4:7], 0 offen
+                                                                    buffer_load_dword    v2, v0, s[8:11], 0 offen
+                                                                    s_waitcnt            vmcnt(0)
+                                                                    v_add_f32            v1, v1, v2
+                                                                    buffer_store_dword   v1, v0, s[12:15], 0 offen glc
+layout(std430, binding = 0) buffer in1   { float in1[]; };
+layout(std430, binding = 1) buffer in2   { float in2[]; };
+
+
+layout(std430, binding = 2) buffer out1 { float outData[]; };
+
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    outData[index] = in1[index] + in2[index];                s_inst_prefetch      0x0003
+}                                                            s_getpc_b64          s[0:1]
+                                                             s_mov_b32            s0, s2
+                                                             s_load_dwordx4       s[4:7], s[0:1], null
+                                                             s_load_dwordx4       s[8:11], s[0:1], 0x000020
+                                                             s_load_dwordx4       s[12:15], s[0:1], 0x000040
+                                                             s_and_b32            s0, s3, lit(0x00ffffff)
+                                                             s_lshl_b32           s0, s0, 2
+                                                             v_mov_b32            v0, s0
+                                                             s_waitcnt            lgkmcnt(0)
+                                                             buffer_load_dword    v1, v0, s[4:7], 0 offen
+                                                             buffer_load_dword    v2, v0, s[8:11], 0 offen
+                                                             s_waitcnt            vmcnt(0)
+                                                             v_add_f32            v1, v1, v2
+                                                             buffer_store_dword   v1, v0, s[12:15], 0 offen glc
+layout(std430, binding = 0) buffer in1   { float in1[]; };
+layout(std430, binding = 1) buffer in2   { float in2[]; };
+
+
+layout(std430, binding = 2) buffer out1 { float outData[]; };
+
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    outData[index] = in1[index] + in2[index];                s_inst_prefetch      0x0003
+}                                                            s_getpc_b64          s[0:1]
+                                                             s_mov_b32            s0, s2
+                                                             s_load_dwordx4       s[4:7], s[0:1], null
+                                                             s_load_dwordx4       s[8:11], s[0:1], 0x000020
+                                                             s_load_dwordx4       s[12:15], s[0:1], 0x000040
+                                                             s_and_b32            s0, s3, lit(0x00ffffff)
+                                                             s_lshl_b32           s0, s0, 2
+                                                             v_mov_b32            v0, s0
+    index = gl_WorkGroupID.x *
+                                                             s_waitcnt            lgkmcnt(0)
+    gl_WorkGroupSize.x +
+                                                             buffer_load_dword    v1, v0, s[4:7], 0 offen
+    gl_LocalInvocationID.x
+                                                             buffer_load_dword    v2, v0, s[8:11], 0 offen
+                                                             s_waitcnt            vmcnt(0)
+                                                             v_add_f32            v1, v1, v2
+                                                             buffer_store_dword   v1, v0, s[12:15], 0 offen glc
+layout(std430, binding = 0) buffer in1   { float in1[]; };
+layout(std430, binding = 1) buffer in2   { float in2[]; };
+
+
+layout(std430, binding = 2) buffer out1 { float outData[]; };
+
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    outData[index] = in1[index] + in2[index];                s_inst_prefetch      0x0003
+}                                                            s_getpc_b64          s[0:1]
+                                                             s_mov_b32            s0, s2
+                                                             s_load_dwordx4       s[4:7], s[0:1], null
+                                                             s_load_dwordx4       s[8:11], s[0:1], 0x000020
+                                                             s_load_dwordx4       s[12:15], s[0:1], 0x000040
+                                                             s_and_b32            s0, s3, lit(0x00ffffff)
+                                                             s_lshl_b32           s0, s0, 2
+                                                             v_mov_b32            v0, s0
+                                                             s_waitcnt            lgkmcnt(0)
+                                                             buffer_load_dword    v1, v0, s[4:7], 0 offen
+                                                             buffer_load_dword    v2, v0, s[8:11], 0 offen
+                                                             s_waitcnt            vmcnt(0)
+                                                             v_add_f32            v1, v1, v2
+                                                             buffer_store_dword   v1, v0, s[12:15], 0 offen glc
+layout(std430, binding = 0) buffer in1   { float in1[]; };
+layout(std430, binding = 1) buffer in2   { float in2[]; };
+
+
+layout(std430, binding = 2) buffer out1 { float outData[]; };
+
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    outData[index] = in1[index] + in2[index];                s_inst_prefetch      0x0003
+}                                                            s_getpc_b64          s[0:1]
+                                                             s_mov_b32            s0, s2
+                                                             s_load_dwordx4       s[4:7], s[0:1], null
+                                                             s_load_dwordx4       s[8:11], s[0:1], 0x000020
+                                                             s_load_dwordx4       s[12:15], s[0:1], 0x000040
+                                                             s_and_b32            s0, s3, lit(0x00ffffff)
+                                                             s_lshl_b32           s0, s0, 2
+                                                             v_mov_b32            v0, s0
+                                                             s_waitcnt            lgkmcnt(0)
+                                                             buffer_load_dword    v1, v0, s[4:7], 0 offen
+                                                             buffer_load_dword    v2, v0, s[8:11], 0 offen
+                                                             s_waitcnt            vmcnt(0)
+                                                             v_add_f32            v1, v1, v2
+                                                             buffer_store_dword   v1, v0, s[12:15], 0 offen glc
+layout(std430, binding = 0) buffer in1   { float in1[]; };
+layout(std430, binding = 1) buffer in2   { float in2[]; };
+
+
+layout(std430, binding = 2) buffer out1 { float outData[]; };
+
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    outData[index] = in1[index] + in2[index];                s_inst_prefetch      0x0003
+}                                                            s_getpc_b64          s[0:1]
+                                                             s_mov_b32            s0, s2
+                                                             s_load_dwordx4       s[4:7], s[0:1], null
+                                                             s_load_dwordx4       s[8:11], s[0:1], 0x000020
+                                                             s_load_dwordx4       s[12:15], s[0:1], 0x000040
+                                                             s_and_b32            s0, s3, lit(0x00ffffff)
+                                                             s_lshl_b32           s0, s0, 2
+                                                             v_mov_b32            v0, s0
+                                                             s_waitcnt            lgkmcnt(0)
+                                                             buffer_load_dword    v1, v0, s[4:7], 0 offen
+                                                             buffer_load_dword    v2, v0, s[8:11], 0 offen
+                                                             s_waitcnt            vmcnt(0)
+                                                             v_add_f32            v1, v1, v2
+                                                             buffer_store_dword   v1, v0, s[12:15], 0 offen glc
+layout(std430, binding = 0) buffer in1   { float in1[]; };
+layout(std430, binding = 1) buffer in2   { float in2[]; };
+
+
+layout(std430, binding = 2) buffer out1 { float outData[]; };
+
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    outData[index] = in1[index] + in2[index];                s_inst_prefetch      0x0003
+}                                                            s_getpc_b64          s[0:1]
+                                                             s_mov_b32            s0, s2
+                                                             s_load_dwordx4       s[4:7], s[0:1], null
+                                                             s_load_dwordx4       s[8:11], s[0:1], 0x000020
+                                                             s_load_dwordx4       s[12:15], s[0:1], 0x000040
+                                                             s_and_b32            s0, s3, lit(0x00ffffff)
+                                                             s_lshl_b32           s0, s0, 2
+                                                             v_mov_b32            v0, s0
+                                                             s_waitcnt            lgkmcnt(0)
+                                                             buffer_load_dword    v1, v0, s[4:7], 0 offen
+                                                             buffer_load_dword    v2, v0, s[8:11], 0 offen
+                                                             s_waitcnt            vmcnt(0)
+                                                             v_add_f32            v1, v1, v2
+                                                             buffer_store_dword   v1, v0, s[12:15], 0 offen glc
+

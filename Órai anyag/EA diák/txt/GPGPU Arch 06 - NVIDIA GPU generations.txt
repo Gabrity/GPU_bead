@@ -1,0 +1,662 @@
+          GPGPU
+                06
+        NVIDIA case study
+Gábor Valasek (valasek@inf.elte.hu)
+GeForce 7800 (2006)
+GeForce 7800
+●   Impossible to maximize throughput with such a rigid architecture: you can’t
+    keep vertex and fragment shading units busy all the time
+●   As a result, many bottlenecks in the pipeline (single triangle covering entire
+    screen VS extremely detailed geometry far away)
+●   So NVIDIA decided to unify their processor architectures
+Tesla
+GeForce 8800 (2008 - Tesla)
+GeForce 8800
+
+
+processing
+element
+GeForce 8800
+
+
+
+
+  shader
+  core
+GeForce 8800
+GeForce 8800
+GeForce 8800
+●   Processing element
+     ○   A single processing unit (it can carry out an operation on a piece of data), called streaming
+         processor in NV lingo
+     ○   They are IEEE 754 compliant floating point units with NaNs and infinities; capable of flushing
+         denormals to sign-preserving zeros
+     ○   They handle multiply, add, multiply-add, integer, conversion, etc. operations
+     ○   128 of them in the full spec
+●   Special function unit (SFU)
+     ○   For transcendental functions and attribute interpolation
+     ○   (Guess) Essentially a LUT of quadratic polynomial coefficients per operation (1/x, 2^x, etc)
+     ○   (Guess) Coefficients computed offline with the enhanced minmax algorithm
+     ○   (Guess) More on these in ‘A High-Performance Area-Efficient Multifunction Interpolator’ by
+         Oberman and Siu: https://ieeexplore.ieee.org/document/1467649
+A multifunction interpolator unit
+
+
+
+
+   ~how many of the
+   highest bits of the
+                         Number of bits used to store the
+  mantissa are used to
+                          constant, linear, and quadratic
+    index the LUT of
+                            coefficients, in that order.
+      coefficients.
+http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.94.4275&rep=rep1&type=pdf
+GeForce 8800
+●   Shader core (TPC)
+     ○   Contains 16 processing elements decomposed into two 8-8 groups called SMs
+     ○   Each SM manages a pool of 24 thread groups, or warps in NV lingo
+           ■ A warp is a unit of 32 threads
+     ○   A warp consists of threads of the same work type (vertex, geometry, fragment, or compute -
+         fragment threads are bundled in 2x2 pixels known as quads)
+     ○   The smallest unit capable of executing code (e.g. “shade fragments with shader <X>”)
+●   Some fine details:
+    https://www.cs.cmu.edu/afs/cs/academic/class/15869-f11/www/readings/lindh
+    olm08_tesla.pdf
+●   CUDA is introduced
+Fermi
+NVIDIA GF100 - Fermi (2009)
+●   NVIDIA carried on with the unified architecture in this 2009 series too
+●   That is, unified stream processors switch between vertex and fragment
+    shading tasks, depending on workload needs
+     ○   This requires more complex control logic than before
+●   Fermi is DirectX11 compatible
+     ○   New challenge on the graphics side is the support for tessellation shaders (potentially
+         extremely large data amplification)
+●   The focus with Fermi was on accelerating graphics applications
+Fermi architecture
+●   Main elements:
+     ○   GPC (Graphics Processing Cluster): a scalable unit of graphics processing units
+     ○   SM (Streaming Multiprocessor): a unit of 32 streamprocessors (“GPU core” is now CUDA
+         core) that work on the same task
+     ○   CUDA core: the actual unit of ALU operations with a single, unified instruction set
+●   In particular, GF100 (=GeForce 480) houses
+     ○   4 GPCs
+     ○   Each GPC contains 4 SMs (16 SMs in total in GF100)
+     ○   6 memory controllers
+●   Uses PCIe for accelerated CPU-GPU transfer speeds
+CUDA core
+●   FP: IEEE 754-2008, FMA
+●   INT: bool, shift, move, ...
+FMA
+SM
+SM
+●   32 CUDA cores
+●   4 special function units:
+     ○   For evaluating transcendental functions (trig, inv trig, logs, length, rcp, etc.)
+     ○   They also do interpolation in the graphics pipeline
+     ○   1 instruction per clock => finishing an entire warp takes 8 clocks
+●   Essentially, it is partitioned into 4 independent pipelines: 2 ALU, 1 memory, 1
+    SFU
+●   The dual warp scheduler selects two warps for execution each cycle (2x32
+    threads)
+●   The current instruction of each selected warp then goes to either
+     ○   16 CUDA cores, or
+     ○   16 L/S units, or
+     ○   4 SFUs
+SM
+●   The ‘ALU’ pipelines are called execution blocks, consisting of 16-16 cores
+●   It takes 2 cycles to execute a single instruction of a warp’s 32 threads for the
+    two execution blocks and L/S
+●   It takes 8 cycles to execute 32 SFU commands
+SM scheduling
+SM
+●   Each SM has 4 texture units (TU)
+     ○   A TU can fetch 4 texture samples per cycle
+     ○   And deliver them filtered
+●   Dedicated cache for the TUs
+●   Each SM has an L1 cache
+●   More precisely 64KB mem that can be set to
+     ○ 16KB L1 + 48KB shared
+     ○   48KB L1 + 16KB shared
+●   In rendering: 16KB L1 + 48KB shared
+L2 cache
+●   768KB, shared by all SM-s
+●   Read, write, coherent memory
+PolyMorph Engine
+●   Controls the primitive processing step of the graphics pipeline
+●   It is itself a 5 stage pipeline
+●   The resulting primitives are passed to the rasterizer stage
+Raster Engine
+●   4 Raster Engine in parallel (1 / GPC)
+●   3 stage pipeline
+●   Edge Setup: set up equations for the sides of the triangles
+●   8 pixel/cycle/Raster Engine
+●   Hierarchical Z-culling (tile-based)
+●   The graphics API calls originate from your application
+    (using gl* commands in OpenGL, etc.)
+●   These go into a pushbuffer (called command buffer)
+●   And then comes the fun part:
+    https://fgiesen.wordpress.com/2011/07/09/a-trip-thro
+    ugh-the-graphics-pipeline-2011-index/
+      ○ If you are serious about graphics, you SHOULD
+          check this site
+CPU
+      GPU
+
+
+
+
+...
+Communication within the SM
+Communication between
+every GPC’s every SM
+Rendering details
+https://developer.nvidia.com/content/life-triangle-nvidias-logical-pipeline
+Kepler
+Kepler (2012)
+●   Successor to Fermi (GeForce 680)
+●   Enhancing performance (especially double precision - HPC to the forefront!)
+●   Also focus on efficiency (new mantra is “performance per watt”)
+Kepler setup
+●   4 GPC
+●   8 SMX (just how they called SMs in Kepler)
+●   4 memory controllers
+SMX
+SMX
+●   192 single precision CUDA core, with FMA
+●   32 SFU
+●   Core clocks reduced to GPU clock (it was twice previously)
+●   SMX schedules 4 warps each clock
+     ○   Up to 2 independent commands of the same warp
+●   Simplified scheduler
+     ○   Some complex control logic moved into compilers (reshuffling math lines, etc.)
+●   A single thread can be as wide as 255 registers
+     ○   And these registers could be shuffled between the threads of the warp! Essentially, that’s free
+         communication between the warps, bypassing L1
+Memory
+●   Configurable 64KB memory per SMX, like in Fermi
+●   +48KB-s read-only cache
+●   1536KB L2 cache (shared by all SMX)
+Maxwell
+Maxwell (2014)
+●   Focus on efficiency
+●   Served GeForce 750, 8xx, and GeForce 9xx
+●   Setup:
+     ○   4 GPC
+     ○   4 Maxwell SM (SMM) per GPC - 16 in total
+     ○   4 memory controllers
+●   Some rationalizations:
+     ○   Memory bus: from 192 bits to 128
+     ○   CUDA cores per SMM: 128 (Kepler had 192 per SMX!)
+     ○   etc.
+SMM
+SMM
+●   128 CUDA cores
+     ○   In units of 32
+     ○   Each unit of 32 has its own dedicated scheduler and
+         command buffer
+●   1 PolyMorph Engine
+●   8 texturing unit
+●   Simplified design to ease on control logic
+●   Memory layout revamp:
+     ○   L1 cache shared with texture cache
+     ○   96KB dedicated shared memory
+     ○   L2 cache 2048 KB
+SMM
+●   4 warp scheduler:
+●   Each warp scheduler
+     ○   Schedules 2 commands per cycle
+     ○   Works with its own dedicated 32 CUDA cores
+     ○   8 L/S units
+     ○   8 SFU units
+Pascal
+Pascal
+●   Full Pascal spec (remember: these are the 1080s)
+     ○   6 GPC
+     ○   10 Pascal SM per GPC - 60 in total
+     ○   30 TPC in total
+     ○   8 pieces of 512 bit memory controllers
+●   1 GPC:
+     ○   10 SM
+●   1 SM:
+     ○   64 CUDA cores
+     ○   4 texture units
+●   That totals to 3840 single precision CUDA cores and 240 (!) texture units
+Pascal (2016)
+●   Increased computation capacity (deep learning craze)
+     ○   5.3 TFLOPS FP64 (~double), 10.6 TFLOPS FP32 (~float), 21.2 TFLOPS FP16 (~half)
+●   NVLink for high bandwidth connectivity
+●   Modified memory architectures
+Floating point precision
+         Floating Point Bitdepth    Largest value     Smallest value1    Decimal digits of precision
+
+
+        32-bit Float               3.4028237 × 1038   1.175494 × 10-38   7.22
+
+
+        16-bit Float               6.55 × 104         6.10 × 10-5        3.31
+
+
+        14-bit Float               6.55 × 104         6.10 × 10-5        3.01
+
+
+        11-bit Float               6.50 × 104         6.10 × 10-5        2.1
+
+
+        10-bit Float               6.50 × 104         6.10 × 10-5        1.8
+Pascal
+●   NVLink for high speed GPU-GPU data transfer: 160 GByte/s
+High Bandwidth Memory (HBM)
+●   For the workstation Tesla P100-s
+●   HBM stacked memory layout
+●   In short, layered layout of memory, each with its own dedicated controller
+●   HBM2 can stack up to 8 layers
+●   Even with ECC
+●   AMD started HBM1 in 2008
+Memory compression
+●   Try to compress everything you can
+●   Delta color compression (DCC) for textures:
+     ○   Divide pixels into blocks
+     ○   Assign a reference color to each block
+     ○   Store block pixels by their deviation from reference color
+●   New modes in Pascal
+Load balancing
+●   Maxwell: subdivided the cores between compute and graphics before the fact
+●   Pascal can do some sort of a dynamic load balancing
+Simultaneous Multi-Projection Engine
+Simultaneous Multi-Projection Engine
+Pascal
+●   A single unified virtual memory space for the CPU and GPU (at least up to
+    512 TB)
+●   Compute preemption on command level (Kepler/Maxwell was
+    threadblock-level)
+Volta
+Volta (2017)
+●   Primarily for the HPC community (Titan V), not for consumers
+●   Many goodies, like cooperative groups
+●   And some incremental dev:
+     ○   Modified dispatch (FP32 and INT32 can co-issue)
+     ○   L1 cache and shared memory merged
+●   And there is this new processing unit...
+Volta SM
+Tensor core
+Tensor core
+
+
+
+
+              X12 the speed that of Pascal
+Tensor core
+●   64 FP16/FP32 mixed-precision FMA operations per clock
+New scheduling
+Scheduling before
+Scheduling on Volta
+Scheduling on Volta
+Phasma
+Phasma
+Turing
+Turing (2018)
+●   September 20, 2018: GeForce 2080 RTX
+●   Real time raytracing engine for consumers
+     ○   It’s essentially the equivalent of the polymorph engine for ray tracing
+●   New shading additions
+     ○   VRS, MVR
+     ○   Mesh shading
+Turing SM
+Turing SM
+●   Divided into 4 pipelines, each housing
+     ○   16 FP32
+     ○   16 INT32
+     ○   2 Tensor core
+     ○   1 warp scheduler
+     ○   1 dispatch
+●   96 KB L1/shared
+     ○   64 KB is “shader RAM” (per SM) when executing graphics works
+●   L0 instruction cache
+Memory latencies
+A*B + C
+Raytracing
+Raytracing “before”
+Raytracing “now”
+DXR
+Raytracing in practice
+●   Hybrid solutions to minimize the number of rays
+     ○   Low sample counts usually come with extreme noise - denoising to the forefront of research
+          ■ https://www.youtube.com/watch?v=5pxnDsFLAuY
+          ■ https://research.nvidia.com/publication/interactive-reconstruction-monte-carlo-image-seq
+              uences-using-recurrent-denoising
+          ■ https://www.youtube.com/watch?v=mtdRfl4fmvQ
+●   Acceleration Structures mean a considerable increase in GPU memory
+●   Decrease payload sizes as much as you can
+Raytracing in practice
+DXR
+Mesh shader - motivation
+Mesh shaders
+Mesh shaders
+●   Task shader: threads in workgroups. Each can launch an arbitrary number
+    (including zero) mesh shader workgroups
+●   Mesh shader: each thread can create primitives.
+Mesh shaders
+Mesh shaders
+Mesh shaders
+Texture space shading
+●   Turing feature, only available via extensions (just like mesh shading)
+●   Store the shaded fragments of a triangle in a separate texture
+●   Independent of visibility
+●   Re-sample this stashed texture instead of re-evaluating the full shading
+●   Unless we moved around too much
+●   For certain applications it’s almost a given that we are at least roughly at the
+    same place for a frame: VR left and right eyes
+Classic
+Texture space
+Texture space shading
+●   https://devblogs.nvidia.com/texture-space-shading/
+●   https://www.youtube.com/watch?v=Rpy0-q0TyB0
+Ampere
+In numbers
+●   7 GPCs
+●   Each GPC contains
+     ○   6 TPCs
+     ○   1 raster engine
+     ○   (NEW) 2 ROP partitions
+     ○   (NEW) 8 ROP units per ROP partition
+●   Each TPC contains
+     ○   2 SMs
+     ○   1 polymorph engine
+●   Each SM contains
+     ○   128 CUDA cores
+     ○   4 Texture units
+     ○   4 Tensor Cores (3rd gen)
+     ○   1 RT Core (2nd gen)
+     ○   256 KB register file partitioned into 4 64 KB parts
+     ○   128 KB of configurable L1/Shared memory
+In numbers
+●   12 x 32 bit memory controllers (384 bit)
+●   512 KB L2 cache per controller (6144 KB in total)
+●   An SM partition can now service 2 FP32 operations (in Turing: it could only
+    double issue a float-int operation pair)
+SM
+SMSP
+
+                      Uniform
+                                   General registers (64KB)
+                     registers
+
+
+                                    FP32
+
+
+                                    FP32
+           Warp
+ L0 I$                              INT32
+         scheduler
+
+                                     SFU
+
+
+                                 Tensor (MMA)
+SMSP
+         NVIDIA refers to these pipelines as ‘datapaths’.
+
+                                      Uniform
+                                                             General registers (64KB)
+                                     registers
+
+
+                                                             16xFP32
+
+
+                                                            16xFP32 or
+              Warp
+ L0 I$                                                      16xINT32
+            scheduler
+
+                                                              4xSFU
+
+
+                                                        1xTensor (MMA)
+SM
+●   Re-arranged the two main datapaths:
+     ○   1 with 16 FP32 CUDA Cores
+     ○   1 with 16 FP32 CUDA Cores and 16 INT32
+●   Tricky: each clock, an SM partition can
+     ○   either execute 32 FP32 operations
+     ○   or execute 16 FP32 and 16 INT32 operations
+●   They kept the Turing double-speed FP16 operations (HFMA)
+Unified shared memory
+●   Graphics mode: 64 KB L1 data/texture cache + 48 KB shared + 16 KB
+    reserved for the graphics pipeline operations
+●   In compute mode:
+                    L1                             Shared
+
+                  128 KB                             0 KB
+
+                  120 KB                             8 KB
+
+                  112 KB                            16 KB
+
+                   96 KB                            32 KB
+
+                   64 KB                            64 KB
+
+                   28 KB                            100 KB
+Tensor cores
+●   4 per SM
+●   256 FP16/32 FMA per clock
+●   3rd gen now supports FP16, BF16 (alternative to IEEE FP16), TF32 (‘tensor
+    float’), FP64, INT8, INT4, binary (INT1)
+     ○   FP16/BF16 has 16x larger throughput in tensor cores than FP32
+●   TF32 basically retains the exponent range of FP32 but discards mantissa bits
+    beyond what is representable with FP16
+●   Faster execution if your input matrices are (lower bound) matches of
+    particular sparsity patterns
+Tensor cores
+NVIDIA types
+Structured sparsity acceleration
+RT cores
+●   Some caching and throughput optimizations
+●   And some other nice goodies
+NVIDIA ISA levels
+
+             API                API   API
+
+
+
+
+        IL          IL           IL   IL
+
+
+
+                         PTX
+
+
+
+                         SASS
+References
+●   Fermi whitepaper:
+      ○    http://www.nvidia.com/content/pdf/fermi_white_papers/p.glaskowsky_nvidia's_fermi-the_first_complete_gpu_a
+           rchitecture.pdf
+      ○    http://www.nvidia.com/content/pdf/fermi_white_papers/nvidia_fermi_compute_architecture_whitepaper.pdf
+●   Kepler whitepaper: https://www.nvidia.com/content/PDF/kepler/NVIDIA-Kepler-GK110-Architecture-Whitepaper.pdf
+●   Maxwell whitepaper:
+      ○    http://international.download.nvidia.com/geforce-com/international/pdfs/GeForce-GTX-750-Ti-Whitepaper.pdf
+      ○    http://international.download.nvidia.com/geforce-com/international/pdfs/GeForce_GTX_980_Whitepaper_FIN
+           AL.PDF
+●   Pascal whitepaper:
+      ○    http://international.download.nvidia.com/geforce-com/international/pdfs/GeForce_GTX_1080_Whitepaper_FIN
+           AL.pdf
+      ○    https://images.nvidia.com/content/pdf/tesla/whitepaper/pascal-architecture-whitepaper.pdf
+●   Volta whitepaper:
+      ○    http://images.nvidia.com/content/volta-architecture/pdf/volta-architecture-whitepaper.pdf
+●   Turing whitepaper:
+      ○    https://www.nvidia.com/content/dam/en-zz/Solutions/design-visualization/technologies/turing-architecture/NVI
+           DIA-Turing-Architecture-Whitepaper.pdf
+References
+The lowest level details are unfortunately only available via reverse-engineering:
+
+●   Volta: https://arxiv.org/abs/1804.06826
+●   Turing: https://arxiv.org/pdf/1903.07486.pdf
+Ampere whitepapers
+●   https://www.nvidia.com/content/dam/en-zz/Solutions/geforce/ampere/pdf/NVI
+    DIA-ampere-GA102-GPU-Architecture-Whitepaper-V1.pdf
+●   https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/nvidia-amp
+    ere-architecture-whitepaper.pdf
+Ada and Hopper
+Ada and Hopper
+Ada GPC with Raster Engine, 6 TPCs, 12 SMs, and 16 ROPs (8 per ROP partition).
+Ada specification
+The Ad102 (GeForce 4090) full spec:
+
+●   11 GPCs, each of which has
+     ○   1 raster engine
+     ○   Two ROP partitions
+●   Each ROP partition consists of
+     ○   8 ROP units
+     ○   6 TPCs
+●   Each TPC contains
+     ○   2 SMs
+     ○   1 Polymorph engine
+Ada specification
+●   TSMC 4n process
+●   76.3 billion transistors
+●   18432 CUDA cores @ 2.5 GHz (+70% compared to GA102)
+Ada specification
+●   TSMC 4n process
+●   76.3 billion transistors
+●   18432 CUDA cores @ 2.5 GHz (+70% compared to GA102)
+●   SM L1 cache is 128KB => 18432 KB in total
+●   L2 cache 98304 KB => 16x more than in GA102
+●   4090 comes with a 1 TB/sec peak memory bandwidth
+
+TSMC: Hey, NVIDIA, how much memory do you want?
+NVIDIA: Yes.
+Ada specification
+●   TSMC 4n process
+●   76.3 billion transistors
+●   18432 CUDA cores @ 2.5 GHz (+70% compared to GA102)
+●   SM L1 cache is 128KB => 18432 KB in total
+●   L2 cache 98304 KB => 16x more than in GA102
+●   4090 comes with a 1 TB/sec peak memory bandwidth
+
+TSMC: Hey, NVIDIA, how much memory do you want?
+NVIDIA: Yes.
+SM
+
+
+      SM partition        SM partition   RTX
+
+
+
+
+SCH                                      FP64
+
+
+      SM partition        SM partition
+                                         FP64
+
+
+
+      Memory/caches/texturing
+SM partition
+                                       SCH
+
+
+
+
+                FP32
+                  /    FP32   Tensor   LD/ST   SFU
+               INT32
+
+
+
+
+                x16    x16      x1      x4     x4
+SM partition
+                                       SCH
+
+
+
+
+                FP32
+                  /    FP32   Tensor   LD/ST   SFU   RTX     FP64
+               INT32
+
+
+
+
+                x16    x16      x1      x4     x4    x0.25   x0.5
+There are 2 FP64 units
+per SM as well => double
+precision operations are
+1/64th rate compared to
+FP32
+Matrix-matrix multiply-add
+operations
+ADA SM
+●   128 CUDA cores
+●   1 RT core (gen 3)
+●   4 Tensor cores (gen 4)
+●   256 KB register file
+●   128 KB L1/shared configurable memory
+Ada SM
+●   4 partitions
+●   Each partition contains
+     ○   L0 instruction cache
+     ○   1 warp scheduler
+     ○   1 dispatch unit
+     ○   64KB register file (=16K 4 byte registers)
+     ○   16 FP32 cores
+     ○   16 FP32/INT32 cores
+     ○   1 TC (gen 4)
+     ○   4 Load/Store units
+     ○   1 SFU
+DLSS
+●   Ampere introduced optical flow hardware acceleration
+●   It was improved in Ada, pushing it to 300 tera ops
+https://www.nvidia.com/en-gb/geforce/news/gfecnt/geforce-gtx-dxr-ray-tracing-available-now
+RTX cores
+●   Some incremental changes (improved ray-triangle intersection performance)
+●   Some qualitative improvements (new units/techniques!)
+DXR
+Opacity Micromap Engine
+●   To accelerate HW raytracing of alpha channel user materials
+●   It stores a virtual mesh (texture, really) of ‘virtual triangles’
+●   Each ‘triangle’ stores an opacity state (opaque, transparent, unknown)
+●   Only have to invoke AnyHit shader for the latter
+●   Seems to be akin to Intel’s solution:
+    https://dl.acm.org/doi/abs/10.1145/3406180
+●   https://dl.acm.org/doi/abs/10.1145/3406180
+Displaced Micro-mesh Engine
+●   Likely akin to https://perso.telecom-paristech.fr/boubek/papers/TFDM/
+●   This is hardware accelerated displacement mapping (for RT loads)
+●   As such, it also decreases memory footprints
+●   https://perso.telecom-paristech.fr/boubek/papers/TFDM/
+Displaced Micro-mesh Engine
+SER
+●   Shader execution re-ordering: for ray tracing shaders
+●   RT, and especially path tracing, workloads may be highly divergent
+●   SER is exposed via an NVAPI API to modify scheduling of work to re-order
+    threads for better coherence
+SER
+●   Shader execution re-ordering: for ray tracing shaders
+●   RT, and especially path tracing, workloads may be highly divergent
+●   SER is exposed via an NVAPI API to modify scheduling of work to re-order
+    threads for better coherence
+SER
+●   Shader execution re-ordering: for ray tracing shaders
+●   RT, and especially path tracing, workloads may be highly divergent
+●   SER is exposed via an NVAPI API to modify scheduling of work to re-order
+    threads for better coherence
+Resources
+●   Ada architecture whitepaper:
+    https://images.nvidia.com/aem-dam/Solutions/geforce/ada/nvidia-ada-gpu-arc
+    hitecture.pdf (‘non-scientific’)
+●   Hopper architecture whitepaper:
+    https://www.hpctech.co.jp/catalog/gtc22-whitepaper-hopper_v1.01.pdf
+Blackwell
+Whitepaper
+https://images.nvidia.com/aem-dam/Solutions/geforce/blackwell/nvidia-rtx-blackwe
+ll-gpu-architecture.pdf
+

@@ -1,0 +1,21 @@
+Opcionális feladat: egy ideálisan ~7 diás bemutatóval kell készülni, melyet a fő kiválasztott feladatodról kell készíteni. A diasort pedig videó formátumban, saját hangotokat felvéve max 5 percben prezentálni, majd ide feltölteni. 
+
+Értsd:
+
+    Aki több feladatot tervez készíteni, csak egy feladatot mutathat be.
+    Akik többen közösen készítenek (akár több) feladatot, csak egy feladatról egy prezentációt mutathatnak be - a pontokat (max 10) pedig majd el kell osztaniuk egymás között.
+    Irdatlanul felgyorsítva egy sokperces prezentációt nem áll módunkban elfogadni, stb.
+
+A diasornak tartalmaznia kell a következőket:
+
+    Címlap: feladat sorszáma, feladat neve, készítője és neptun kódja. (1 dia)
+    A feladat bemutatása. (Lássuk, hogy alaposan utánanéztél és érted-e.)
+    Párhuzamosítás bemutatása. (Ha korlátos a prezentációra szánt idő, akkor egy főbb rész vagy algoritmus párhuzamosításának bemutatása.) Programkód/tervek bemutatása tipikusan nem ajánlott, de szívesen látunk ábrákat, pszeudokódot és egyéb prezentációban élvezhető megoldásokat.
+    Párhuzamosításban rejlő kihívások bemutatása. (Pl. ha követeli a szinkronizációt, és vagy munkacsoportok használtatát a feladat.)
+    Az egyes diák ne legyenek túlzsúfolva: sokkal jobb egy-egy címszó mint egy novella.
+
+Az értékelés teljes mikéntjén még dolgozunk, pl. lehet hogy tennénk fel kérdéseket a prezentáció átnézése után.
+
+Megjegyzés: Lehet keretrendszereket használni a beadandó megoldása során, vagy éppen hivatkozni rájuk a prezentációban, viszont a párhuzamosítandó algoritmusok párhuzamosítását neked kell kivitelezni és azt kvázi alacsony szinten, amit pl az OpenCL, HIP vagy CUDA lehetővé tesz.
+
+Akinek kérdése van, vegye fel velünk a kapcsolatot Teams-en, vagy személyesen az órán.
